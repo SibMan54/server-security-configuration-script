@@ -15,6 +15,12 @@ usermod -aG sudo "$username"
 
 # Редактируем файлы конфигурации ssh
 echo "Редактируйте файлы конфигурации ssh. Нажмите Ctrl + X, затем Y и Enter для сохранения."
+echo - Необходимо найти строку "#Port 22" изменяем к виду Port 4567
+echo - Необходимо найти строку "PermitRootLogin yes" мзменяем значение на "no"
+echo - Необходимо найти строку "#PubkeyAuthentication yes" убираем "#" 
+echo - Необходимо найти строки "#PasswordAuthentication yes" и "#PermitEmptyPasswords no" убираем "#" и меняем значения на "no"
+# Пауза перед редактированием файлов конфигурации SSH
+read -p "Нажмите Enter для редактирования файлов конфигурации SSH..."
 nano /etc/ssh/sshd_config
 nano /etc/ssh/sshd_config.d/50-cloud-init.conf
 
