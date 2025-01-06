@@ -62,6 +62,8 @@ sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 # Включаем Firewall и добавляем разрешенные порты
 ufw enable
 ufw allow $NEW_PORT/tcp
+ufw reload
+ufw status numbered
 
 # Перезагрузка службы SSH
 systemctl restart ssh
