@@ -24,7 +24,8 @@ else
 fi
 
 # Выдаем новому пользователю права sudo
-if usermod -aG sudo "$username"; then
+# if usermod -aG sudo "$username"; then
+if usermod -aG wheel "$username"; then
   echo "Пользователю $username успешно выданы права sudo."
 else
   echo "Ошибка при назначении прав sudo пользователю $username."
