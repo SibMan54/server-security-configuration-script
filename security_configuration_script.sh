@@ -38,6 +38,9 @@ PUB_KEY_PATH="/root/.ssh/authorized_keys"
 # Путь к папке назначения (например, в .ssh)
 DESTINATION_PATH="$HOME/.ssh/"
 
+#
+mkdir $HOME/.ssh
+
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$PUB_KEY_PATH" ]]; then
     echo "Публичный SSH ключ не найден: $PUB_KEY_PATH"
