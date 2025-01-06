@@ -32,23 +32,41 @@ else
 fi
 
 # Редактируем файлы конфигурации ssh
-echo "Редактируйте файлы конфигурации ssh. Нажмите Ctrl + X, затем Y и Enter для сохранения."
-echo - Необходимо найти строку "#Port 22" изменяем к виду Port 4567
-echo - Необходимо найти строку "PermitRootLogin yes" мзменяем значение на "no"
-echo - Необходимо найти строку "#PubkeyAuthentication yes" убираем "#" 
-echo - Необходимо найти строки "#PasswordAuthentication yes" и "#PermitEmptyPasswords no" убираем "#" и меняем значения на "no"
-# Пауза перед редактированием файлов конфигурации SSH
-read -p "Нажмите Enter для редактирования файлов конфигурации SSH..."
-nano /etc/ssh/sshd_config
-nano /etc/ssh/sshd_config.d/50-cloud-init.conf
 
-# Перезапускаем ssh
-service ssh restart
+# Запрос порта у пользователя
+read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
+NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
+
+# Путь к файлу конфигурации SSH
+SSH_CONFIG="/etc/ssh/sshd_config"
+
+# Резервная копия исходного файла конфигурации
+cp $SSH_CONFIG ${SSH_CONFIG}.bak
+
+# Изменение порта SSH
+sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
+sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
+
+# Запрет авторизации для root
+sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+
+# Запрет авторизации по паролю
+sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+
+# Разрешение авторизации по публичному ключу
+sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
 # Включаем Firewall и добавляем разрешенные порты
 ufw enable
-ufw allow 443/tcp
-ufw allow 4567/tcp
-ufw allow 13000/tcp
+ufw allow $NEW_PORT/tcp
 
-echo "Настройка завершена!"
+# Перезагрузка службы SSH
+systemctl restart ssh
+
+echo ===========================
+echo "Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT. Новый порт добавлен в ufw."
+echo  ++++++++++++++++++++++++++
+echo "Настройка завершена, сервер теперь в безопастности!"
+echo ===========================
