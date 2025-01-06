@@ -12,17 +12,23 @@ read -p "Введите имя нового пользователя: " username
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  # exit 1
+  exit 1
+fi
+
+# Создаем нового пользователя
+if adduser "$username"; then
+  echo "Пользователь $username успешно создан."
 else
-  # Создаем нового пользователя
-  if adduser "$username"; then
-    echo "Пользователь $username успешно создан."
-    # Выдаем новому пользователю права sudo
-    if usermod -aG sudo "$username"; then
-      echo "Пользователю $username успешно выданы права sudo."
-    else
-      echo "Ошибка при назначении прав sudo пользователю $username."
-      exit 1
+  echo "Ошибка при создании пользователя $username."
+  exit 1
+fi
+
+# Выдаем новому пользователю права sudo
+if usermod -aG sudo "$username"; then
+  echo "Пользователю $username успешно выданы права sudo."
+else
+  echo "Ошибка при назначении прав sudo пользователю $username."
+  exit 1
 fi
 
 # Редактируем файлы конфигурации ssh
