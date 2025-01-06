@@ -23,10 +23,6 @@ else
     else
       echo "Ошибка при назначении прав sudo пользователю $username."
       exit 1
-      fi
-  else
-    echo "Ошибка при создании пользователя $username."
-    exit 1
 fi
 
 # Редактируем файлы конфигурации ssh
