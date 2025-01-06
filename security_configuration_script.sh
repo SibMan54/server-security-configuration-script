@@ -54,6 +54,7 @@ sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
 # Запрет авторизации по паролю
 sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
 sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
 
 # Разрешение авторизации по публичному ключу
 sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
