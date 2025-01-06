@@ -31,13 +31,27 @@ else
   exit 1
 fi
 
-# Добавление SSH ключа в папку пользователя
-echo =======================================================================
-echo "Вставьте публичный ключ, нажав правую кнопку мыши, затем Ctrl+X, затем Y и Enter для сохранения".
-echo =======================================================================
-read -p "Если прочитали, нажимайте Enter и приступайте"
-mkdir /home/$username/.ssh
-nano /home/$username/.ssh/authorized_keys
+# Копирование публичного ключа SSH в папку пользователя
+# Путь к вашему публичному SSH-ключу
+PUB_KEY_PATH="/root/.ssh/authorized_keys"
+
+# Путь к папке назначения (например, в .ssh)
+DESTINATION_PATH="$HOME/.ssh/"
+
+# Проверка, существует ли публичный ключ
+if [[ ! -f "$PUB_KEY_PATH" ]]; then
+    echo "Публичный SSH ключ не найден: $PUB_KEY_PATH"
+    exit 1
+fi
+
+# Копируем публичный ключ в папку назначения
+if cp "$PUB_KEY_PATH" "$DESTINATION_PATH"; then
+    sed -i "s/^root@/$username@/" $DESTINATION_PATH/authorized_keys
+    echo "Публичный SSH ключ успешно скопирован в: $DESTINATION_PATH"
+else
+    echo "Ошибка при копировании публичного SSH ключа."
+    exit 1
+fi
 
 # Редактируем файлы конфигурации ssh
 
