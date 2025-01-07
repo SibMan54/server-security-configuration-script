@@ -26,6 +26,7 @@ else
   exit 1
 fi
 ;;
+
 1)
 # Создаем нового пользователя
 if adduser "$username"; then
@@ -34,7 +35,6 @@ else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
-
 # Выдаем новому пользователю права sudo
 if usermod -aG "$username" sudo; then
   echo "Пользователю $username успешно выданы права sudo."
