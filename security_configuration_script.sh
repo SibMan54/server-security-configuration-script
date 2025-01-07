@@ -19,23 +19,22 @@ if id "$username" &>/dev/null; then
     echo "Ошибка при назначении прав sudo пользователю $username."
     exit 1
   fi
-fi
-
-# Создаем нового пользователя
-if adduser "$username"; then
-  echo "Пользователь $username успешно создан."
-  # Выдаем новому пользователю права sudo
-  if usermod -aG sudo "$username"; then
-    echo "Пользователю $username успешно выданы права sudo."
+else
+  # Создаем нового пользователя
+  if adduser "$username"; then
+    echo "Пользователь $username успешно создан."
+    # Выдаем новому пользователю права sudo
+    if usermod -aG sudo "$username"; then
+      echo "Пользователю $username успешно выданы права sudo."
+    else
+      echo "Ошибка при назначении прав sudo пользователю $username."
+      exit 1
+    fi
   else
-    echo "Ошибка при назначении прав sudo пользователю $username."
+    echo "Ошибка при создании пользователя $username."
     exit 1
   fi
-else
-  echo "Ошибка при создании пользователя $username."
-  exit 1
 fi
-
 # Копирование публичного ключа SSH в папку пользователя
 #
 # Путь к вашему публичному SSH-ключу
