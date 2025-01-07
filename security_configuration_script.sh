@@ -28,7 +28,7 @@ fi
 ;;
 2)
 # Выдаем новому пользователю права sudo
-if usermod -aG sudo "$username"; then
+if usermod -aG "$username" sudo; then
   echo "Пользователю $username успешно выданы права sudo."
 else
   echo "Ошибка при назначении прав sudo пользователю $username."
@@ -38,14 +38,15 @@ fi
 esac
 
 # Копирование публичного ключа SSH в папку пользователя
-# Создаем папку ssh
-mkdir -p /home/$username/.ssh
-
+#
 # Путь к вашему публичному SSH-ключу
 KEY_PATH="/root/.ssh/authorized_keys"
 
 # Путь к папке назначения (например, в .ssh)
 USER_KEY_PATH="/home/$username/.ssh/"
+# Создаем папку ssh
+mkdir -p "USER_KEY_PATH"
+chmod 600 "USER_KEY_PATH"
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
@@ -53,7 +54,7 @@ if [[ ! -f "$KEY_PATH" ]]; then
     # Добавление ключа вручную 
     echo "Скопируйте и вставьте свой публичный ключ SSH, нажмите Ctrl + X, затем Y и Enter для сохранения."
     read -p "Нажмите Enter для редактирования файла ключа SSH..."
-    nano /home/$username/.ssh/authorized_keys
+    nano "USER_KEY_PATH"/authorized_keys
 fi
 
 # Копируем публичный ключ в папку назначения
