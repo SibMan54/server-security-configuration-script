@@ -7,14 +7,17 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Создаем нового пользователя
+USER=1
 read -p "Введите имя нового пользователя: " username
 
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  exit 1
+  USER=2
 fi
 
+case $USER in
+1)
 # Создаем нового пользователя
 if adduser "$username"; then
   echo "Пользователь $username успешно создан."
@@ -22,7 +25,8 @@ else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
-
+;;
+2)
 # Выдаем новому пользователю права sudo
 if usermod -aG sudo "$username"; then
   echo "Пользователю $username успешно выданы права sudo."
@@ -30,9 +34,35 @@ else
   echo "Ошибка при назначении прав sudo пользователю $username."
   exit 1
 fi
+;;
+esac
+
+# Копирование публичного ключа SSH в папку пользователя
+# Путь к вашему публичному SSH-ключу
+KEY_PATH="/root/.ssh/authorized_keys"
+
+# Путь к папке назначения (например, в .ssh)
+USER_KEY_PATH="/home/$username/.ssh/"
+# Создаем папку ssh
+mkdir /home/$username/.ssh
+
+# Проверка, существует ли публичный ключ
+if [[ ! -f "$KEY_PATH" ]]; then
+    echo "Публичный SSH ключ не найден: $KEY_PATH"
+    exit 1
+fi
+
+# Копируем публичный ключ в папку назначения
+if cp "$KEY_PATH" "$USER_KEY_PATH"; then
+    sed -i "s/^root@/$username@/" $USER_KEY_PATH/authorized_keys
+    echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+else
+    echo "Ошибка при копировании публичного SSH ключа."
+    exit 1
+fi
 
 # Редактируем файлы конфигурации ssh
-
+#
 # Запрос порта у пользователя
 read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
 NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
