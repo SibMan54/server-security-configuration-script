@@ -41,6 +41,11 @@ esac
 # Путь к вашему публичному SSH-ключу
 KEY_PATH="/root/.ssh/authorized_keys"
 
+# Путь к папке назначения (например, в .ssh)
+USER_KEY_PATH="/home/$username/.ssh/"
+# Создаем папку ssh
+mkdir /home/$username/.ssh
+
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
     echo "Публичный SSH ключ не найден: $KEY_PATH"
@@ -48,12 +53,13 @@ if [[ ! -f "$KEY_PATH" ]]; then
 fi
 
 # Копируем публичный ключ в папку назначения
-if cp -rf /root/.ssh /home/$username; then
-    echo "Публичный SSH ключ успешно скопирован в: $username/.ssh"
+if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+    echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
 else
     echo "Ошибка при копировании публичного SSH ключа."
     exit 1
 fi
+
 
 # Редактируем файлы конфигурации ssh
 #
