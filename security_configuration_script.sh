@@ -58,6 +58,7 @@ fi
 
 # Копируем публичный ключ в папку назначения
 if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+    chown $username:$username "$USER_KEY_PATH"/authorized_keys
     echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
 else
     echo "Ошибка при копировании публичного SSH ключа."
