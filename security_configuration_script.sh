@@ -48,7 +48,7 @@ if [[ ! -f "$KEY_PATH" ]]; then
 fi
 
 # Копируем публичный ключ в папку назначения
-if cp /root/.ssh /home/$username; then
+if cp -rf /root/.ssh /home/$username; then
     echo "Публичный SSH ключ успешно скопирован в: $username/.ssh"
 else
     echo "Ошибка при копировании публичного SSH ключа."
