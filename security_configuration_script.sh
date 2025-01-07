@@ -19,7 +19,7 @@ fi
 case $USER in
 1)
 # Создаем нового пользователя
-if adduser "$username"; then
+if adduser "$username" sudo; then
   echo "Пользователь $username успешно создан."
 else
   echo "Ошибка при создании пользователя $username."
