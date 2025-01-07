@@ -44,7 +44,7 @@ KEY_PATH="/root/.ssh/authorized_keys"
 # Путь к папке назначения (например, в .ssh)
 USER_KEY_PATH="/home/$username/.ssh/"
 # Создаем папку ssh
-mkdir /home/$username/.ssh
+mkdir -p /home/$username/.ssh
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
