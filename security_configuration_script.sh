@@ -104,6 +104,7 @@ ufw status numbered
 
 # Перезагрузка службы SSH
 systemctl restart ssh
+restart ssh
 
 echo ===========================================================
 echo "Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT. Новый порт добавлен в ufw."
