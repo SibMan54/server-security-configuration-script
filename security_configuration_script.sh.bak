@@ -7,16 +7,24 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Создаем нового пользователя
-USER=1
 read -p "Введите имя нового пользователя: " username
-
+USER=1
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  USER=2
+  USER=0
 fi
 
 case $USER in
+0)
+# Выдаем новому пользователю права sudo
+if usermod -aG sudo "$username"; then
+  echo "Пользователю $username успешно выданы права sudo."
+else
+  echo "Ошибка при назначении прав sudo пользователю $username."
+  exit 1
+fi
+;;
 1)
 # Создаем нового пользователя
 if adduser "$username"; then
@@ -25,8 +33,6 @@ else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
-;;
-2)
 # Выдаем новому пользователю права sudo
 if usermod -aG sudo "$username"; then
   echo "Пользователю $username успешно выданы права sudo."
@@ -38,28 +44,36 @@ fi
 esac
 
 # Копирование публичного ключа SSH в папку пользователя
+#
 # Путь к вашему публичному SSH-ключу
 KEY_PATH="/root/.ssh/authorized_keys"
 
 # Путь к папке назначения (например, в .ssh)
 USER_KEY_PATH="/home/$username/.ssh/"
 # Создаем папку ssh
-mkdir /home/$username/.ssh
+mkdir -p "$USER_KEY_PATH"
+chmod 700 "$USER_KEY_PATH"
+chown $username:$username "$USER_KEY_PATH"
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
     echo "Публичный SSH ключ не найден: $KEY_PATH"
-    exit 1
+    # Добавление ключа вручную 
+    echo "Скопируйте и вставьте свой публичный ключ SSH, нажмите Ctrl + X, затем Y и Enter для сохранения."
+    read -p "Нажмите Enter для редактирования файла ключа SSH..."
+    nano "$USER_KEY_PATH"/authorized_keys
 fi
 
 # Копируем публичный ключ в папку назначения
-if cp "$KEY_PATH" "$USER_KEY_PATH"; then
-    sed -i "s/^root@/$username@/" $USER_KEY_PATH/authorized_keys
+if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+    chmod 600 "$USER_KEY_PATH"/authorized_keys
+    chown $username:$username "$USER_KEY_PATH"/authorized_keys
     echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
 else
     echo "Ошибка при копировании публичного SSH ключа."
     exit 1
 fi
+
 
 # Редактируем файлы конфигурации ssh
 #
@@ -98,8 +112,8 @@ ufw status numbered
 # Перезагрузка службы SSH
 systemctl restart ssh
 
-echo ===========================
+echo ===========================================================
 echo "Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT. Новый порт добавлен в ufw."
-echo  ++++++++++++++++++++++++++
+echo ""
 echo "Настройка завершена, сервер теперь в безопастности!"
-echo ===========================
+echo ===========================================================
