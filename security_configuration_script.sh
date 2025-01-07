@@ -33,23 +33,23 @@ fi
 
 # Копирование публичного ключа SSH в папку пользователя
 # Путь к вашему публичному SSH-ключу
-PUB_KEY_PATH="/root/.ssh/authorized_keys"
+KEY_PATH="/root/.ssh/authorized_keys"
 
 # Путь к папке назначения (например, в .ssh)
-DESTINATION_PATH="$HOME/.ssh/"
+USER_KEY_PATH="/home/$username/.ssh/"
 # Создаем папку ssh
-mkdir $HOME/.ssh
+mkdir /home/$username/.ssh
 
 # Проверка, существует ли публичный ключ
-if [[ ! -f "$PUB_KEY_PATH" ]]; then
-    echo "Публичный SSH ключ не найден: $PUB_KEY_PATH"
+if [[ ! -f "$KEY_PATH" ]]; then
+    echo "Публичный SSH ключ не найден: $KEY_PATH"
     exit 1
 fi
 
 # Копируем публичный ключ в папку назначения
-if cp "$PUB_KEY_PATH" "$DESTINATION_PATH"; then
-    sed -i "s/^root@/$username@/" $DESTINATION_PATH/authorized_keys
-    echo "Публичный SSH ключ успешно скопирован в: $DESTINATION_PATH"
+if cp "$KEY_PATH" "$USER_KEY_PATH"; then
+    sed -i "s/^root@/$username@/" $USER_KEY_PATH/authorized_keys
+    echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
 else
     echo "Ошибка при копировании публичного SSH ключа."
     exit 1
