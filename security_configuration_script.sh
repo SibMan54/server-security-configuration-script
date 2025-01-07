@@ -19,14 +19,14 @@ fi
 case $USER in
 1)
 # Создаем нового пользователя
-if adduser "$username"; then
+if adduser $username; then
   echo "Пользователь $username успешно создан."
 else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
 # Выдаем новому пользователю права sudo
-if usermod -aG "$username" sudo; then
+if usermod -aG $username sudo; then
   echo "Пользователю $username успешно выданы права sudo."
 else
   echo "Ошибка при назначении прав sudo пользователю $username."
