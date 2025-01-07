@@ -7,14 +7,17 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Создаем нового пользователя
+USER=0
 read -p "Введите имя нового пользователя: " username
 
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  exit 1
+  USER=1
 fi
 
+case $USER
+1)
 # Создаем нового пользователя
 if adduser "$username"; then
   echo "Пользователь $username успешно создан."
@@ -22,7 +25,8 @@ else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
-
+;;
+2)
 # Выдаем новому пользователю права sudo
 if usermod -aG sudo "$username"; then
   echo "Пользователю $username успешно выданы права sudo."
@@ -30,6 +34,8 @@ else
   echo "Ошибка при назначении прав sudo пользователю $username."
   exit 1
 fi
+;;
+esac
 
 # Копирование публичного ключа SSH в папку пользователя
 # Путь к вашему публичному SSH-ключу
