@@ -17,16 +17,6 @@ if id "$username" &>/dev/null; then
 fi
 
 case $USER in
-0)
-# Выдаем новому пользователю права sudo
-if usermod -aG "$username" sudo; then
-  echo "Пользователю $username успешно выданы права sudo."
-else
-  echo "Ошибка при назначении прав sudo пользователю $username."
-  exit 1
-fi
-;;
-
 1)
 # Создаем нового пользователя
 if adduser "$username"; then
