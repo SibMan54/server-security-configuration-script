@@ -16,7 +16,7 @@ if id "$username" &>/dev/null; then
   USER=1
 fi
 
-case $USER
+case $USER in
 1)
 # Создаем нового пользователя
 if adduser "$username"; then
