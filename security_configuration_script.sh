@@ -13,20 +13,28 @@ read -p "Введите имя нового пользователя: " username
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  USER=2
+  USER=0
 fi
 
 case $USER in
+0)
+# Выдаем новому пользователю права sudo
+if usermod -aG "$username" sudo; then
+  echo "Пользователю $username успешно выданы права sudo."
+else
+  echo "Ошибка при назначении прав sudo пользователю $username."
+  exit 1
+fi
+;;
 1)
 # Создаем нового пользователя
-if sudo adduser "$username" sudo; then
+if adduser "$username"; then
   echo "Пользователь $username успешно создан."
 else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
-;;
-2)
+
 # Выдаем новому пользователю права sudo
 if usermod -aG "$username" sudo; then
   echo "Пользователю $username успешно выданы права sudo."
