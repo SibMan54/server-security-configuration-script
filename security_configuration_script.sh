@@ -38,18 +38,22 @@ fi
 esac
 
 # Копирование публичного ключа SSH в папку пользователя
+# Создаем папку ssh
+mkdir -p /home/$username/.ssh
+
 # Путь к вашему публичному SSH-ключу
 KEY_PATH="/root/.ssh/authorized_keys"
 
 # Путь к папке назначения (например, в .ssh)
 USER_KEY_PATH="/home/$username/.ssh/"
-# Создаем папку ssh
-# mkdir -p /home/$username/.ssh
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
     echo "Публичный SSH ключ не найден: $KEY_PATH"
-    exit 1
+    # Добавление ключа вручную 
+    echo "Скопируйте и вставьте свой публичный ключ SSH, нажмите Ctrl + X, затем Y и Enter для сохранения."
+    read -p "Нажмите Enter для редактирования файла ключа SSH..."
+    nano /home/$username/.ssh/authorized_keys
 fi
 
 # Копируем публичный ключ в папку назначения
