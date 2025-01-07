@@ -45,8 +45,8 @@ KEY_PATH="/root/.ssh/authorized_keys"
 # Путь к папке назначения (например, в .ssh)
 USER_KEY_PATH="/home/$username/.ssh/"
 # Создаем папку ssh
-mkdir -p "USER_KEY_PATH"
-chmod 600 "USER_KEY_PATH"
+mkdir -p "$USER_KEY_PATH"
+chmod 700 "$USER_KEY_PATH"
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
@@ -54,7 +54,7 @@ if [[ ! -f "$KEY_PATH" ]]; then
     # Добавление ключа вручную 
     echo "Скопируйте и вставьте свой публичный ключ SSH, нажмите Ctrl + X, затем Y и Enter для сохранения."
     read -p "Нажмите Enter для редактирования файла ключа SSH..."
-    nano "USER_KEY_PATH"/authorized_keys
+    nano "$USER_KEY_PATH"/authorized_keys
 fi
 
 # Копируем публичный ключ в папку назначения
