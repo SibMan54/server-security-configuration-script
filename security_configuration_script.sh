@@ -39,7 +39,7 @@ esac
 
 # Копирование публичного ключа SSH в папку пользователя
 # Путь к вашему публичному SSH-ключу
-KEY_PATH="/root/.ssh"
+KEY_PATH="/root/.ssh/authorized_keys"
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
@@ -48,7 +48,7 @@ if [[ ! -f "$KEY_PATH" ]]; then
 fi
 
 # Копируем публичный ключ в папку назначения
-if cp "$KEY_PATH" /$username; then
+if cp /root/.ssh /home/$username; then
     echo "Публичный SSH ключ успешно скопирован в: $username/.ssh"
 else
     echo "Ошибка при копировании публичного SSH ключа."
