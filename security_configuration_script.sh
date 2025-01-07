@@ -52,7 +52,8 @@ KEY_PATH="/root/.ssh/authorized_keys"
 USER_KEY_PATH="/home/$username/.ssh/"
 # Создаем папку ssh
 mkdir -p "$USER_KEY_PATH"
-chmod 700 "$USER_KEY_PATH"
+chmod -rw-rw-r-- "$USER_KEY_PATH"
+chown $username:$username "$USER_KEY_PATH"
 
 # Проверка, существует ли публичный ключ
 if [[ ! -f "$KEY_PATH" ]]; then
@@ -65,7 +66,7 @@ fi
 
 # Копируем публичный ключ в папку назначения
 if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
-    chmod 600 "$USER_KEY_PATH"/authorized_keys
+    chmod -rw-rw-r-- "$USER_KEY_PATH"/authorized_keys
     chown $username:$username "$USER_KEY_PATH"/authorized_keys
     echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
 else
