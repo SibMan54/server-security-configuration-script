@@ -7,9 +7,8 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Создаем нового пользователя
-USER=1
 read -p "Введите имя нового пользователя: " username
-
+USER=1
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
@@ -17,16 +16,25 @@ if id "$username" &>/dev/null; then
 fi
 
 case $USER in
+0)
+# Выдаем новому пользователю права sudo
+if usermod -aG "$username" sudo; then
+  echo "Пользователю $username успешно выданы права sudo."
+else
+  echo "Ошибка при назначении прав sudo пользователю $username."
+  exit 1
+fi
+;;
 1)
 # Создаем нового пользователя
-if adduser $username; then
+if adduser "$username"; then
   echo "Пользователь $username успешно создан."
 else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
 # Выдаем новому пользователю права sudo
-if usermod -aG $username sudo; then
+if usermod -aG "$username" sudo; then
   echo "Пользователю $username успешно выданы права sudo."
 else
   echo "Ошибка при назначении прав sudo пользователю $username."
