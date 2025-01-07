@@ -8,40 +8,33 @@ fi
 
 # Создаем нового пользователя
 read -p "Введите имя нового пользователя: " username
-USER=1
+
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  USER=0
+  # Выдаем новому пользователю права sudo
+  if usermod -aG sudo "$username"; then
+    echo "Пользователю $username успешно выданы права sudo."
+  else
+    echo "Ошибка при назначении прав sudo пользователю $username."
+    exit 1
+  fi
 fi
 
-case $USER in
-0)
-# Выдаем новому пользователю права sudo
-if usermod -aG sudo "$username"; then
-  echo "Пользователю $username успешно выданы права sudo."
-else
-  echo "Ошибка при назначении прав sudo пользователю $username."
-  exit 1
-fi
-;;
-1)
 # Создаем нового пользователя
 if adduser "$username"; then
   echo "Пользователь $username успешно создан."
+  # Выдаем новому пользователю права sudo
+  if usermod -aG sudo "$username"; then
+    echo "Пользователю $username успешно выданы права sudo."
+  else
+    echo "Ошибка при назначении прав sudo пользователю $username."
+    exit 1
+  fi
 else
   echo "Ошибка при создании пользователя $username."
   exit 1
 fi
-# Выдаем новому пользователю права sudo
-if usermod -aG sudo "$username"; then
-  echo "Пользователю $username успешно выданы права sudo."
-else
-  echo "Ошибка при назначении прав sudo пользователю $username."
-  exit 1
-fi
-;;
-esac
 
 # Копирование публичного ключа SSH в папку пользователя
 #
