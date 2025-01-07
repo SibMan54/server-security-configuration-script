@@ -7,13 +7,13 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Создаем нового пользователя
-USER=0
+USER=1
 read -p "Введите имя нового пользователя: " username
 
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  USER=1
+  USER=2
 fi
 
 case $USER in
