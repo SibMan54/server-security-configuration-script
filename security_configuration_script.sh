@@ -95,11 +95,32 @@ sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
 # Разрешение авторизации по публичному ключу
 sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
-# Включаем Firewall и добавляем разрешенные порты
-ufw enable
-ufw allow $NEW_PORT/tcp
-ufw reload
-ufw status numbered
+# Активация Firewall
+echo ""
+read -p "Вы хотите активировать Firewall ? (y/n): " answer
+
+if [[ "$answer" == "y" ]]; then
+    # Проверяем статус UFW
+    ufw_status=$(ufw status | grep -i "")
+    
+    if [[ "$ufw_status" == *"inactive"* ]]; then
+        echo "Включаем UFW"
+        ufw enable
+        ufw allow $NEW_PORT/tcp
+        ufw reload
+        ufw status numbered
+    else
+        echo "UFW включен."
+        ufw allow $NEW_PORT/tcp
+        ufw reload
+        ufw status numbered
+    fi
+else
+    echo "Проверка статуса Firewall"
+    ufw status verbose
+fi
+
+echo ""
 
 # Перезагрузка службы SSH
 systemctl restart ssh
