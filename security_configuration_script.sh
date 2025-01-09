@@ -6,6 +6,8 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+echo ""
+
 # Создаем нового пользователя
 read -p "Введите имя нового пользователя: " username
 
@@ -35,8 +37,10 @@ else
     exit 1
   fi
 fi
+
+echo ""
+
 # Копирование публичного ключа SSH в папку пользователя
-#
 # Путь к вашему публичному SSH-ключу
 KEY_PATH="/root/.ssh/authorized_keys"
 
@@ -66,9 +70,9 @@ else
     exit 1
 fi
 
+echo ""
 
 # Редактируем файлы конфигурации ssh
-#
 # Запрос порта у пользователя
 read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
 NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
@@ -94,6 +98,8 @@ sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
 
 # Разрешение авторизации по публичному ключу
 sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
+
+echo ""
 
 # Активация Firewall
 echo ""
