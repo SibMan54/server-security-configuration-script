@@ -73,35 +73,46 @@ else
   fi
 fi
 
-# Редактируем файлы конфигурации ssh
-# Запрос порта у пользователя
+# Проверка SSH соединения для нового пользователя
 echo ""
-read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
-NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
-
-# Путь к файлу конфигурации SSH
-SSH_CONFIG="/etc/ssh/sshd_config"
-
-# Резервная копия исходного файла конфигурации
-cp $SSH_CONFIG ${SSH_CONFIG}.bak
-
-# Изменение порта SSH
-sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
-sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
-
-# Запрет авторизации для root
-sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
-sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
-
-# Запрет авторизации по паролю
-sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
-sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
-sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
-
-# Разрешение авторизации по публичному ключу
-sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
-
+echo "Перед тем как продолжить, попробуйте подключиться к серверу под пользователем $username"
 echo ""
+read -p "Получилось ли у вас подключиться по SSH от имени пользователя $username ? (y/n): " answer
+if [[ "$answer" == "y" ]]; then
+    # Редактируем файлы конфигурации ssh
+    # Запрос порта у пользователя
+    echo ""
+    read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
+    NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
+    
+    # Путь к файлу конфигурации SSH
+    SSH_CONFIG="/etc/ssh/sshd_config"
+    
+    # Резервная копия исходного файла конфигурации
+    cp $SSH_CONFIG ${SSH_CONFIG}.bak
+    
+    # Изменение порта SSH
+    sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
+    sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
+    
+    # Запрет авторизации для root
+    sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+    sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+    
+    # Запрет авторизации по паролю
+    sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+    sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+    sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
+    
+    # Разрешение авторизации по публичному ключу
+    sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
+
+    echo "Защита SSH-соединения настроена. Порт изменен на $PORT, вход root-пользователю и вход по паролю запрещены."
+    
+else 
+    echo "Защита SSH-соединения НЕ настроена, повторите попытку"
+    exit 0
+fi
 
 # Активация Firewall
 echo ""
@@ -136,11 +147,10 @@ service ssh restart
 
 echo ===========================================================
 echo "1. Создан новый пользователь $username"
-echo "2. Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT, не забудьте изменть его при переподключении"
-# Проверяем статус UFW
+echo "2. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
 if [[ "$ufw_status" == *"inactive"* ]]; then
   echo "3. Firewall не активирован"
 else echo "3. Firewall активирован, порт SSH $PORT добавлен в исключения"
 fi
-echo "Настройка завершена, сервер теперь в безопастности!"
+echo "<- Настройка завершена, сервер теперь в безопастности! ->"
 echo ===========================================================
