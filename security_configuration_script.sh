@@ -62,6 +62,7 @@ if [[ ! -f "$KEY_PATH" ]]; then
     chown $username:$username "$USER_KEY_PATH"/authorized_keys
     echo "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
 else
+    # Проверка, существует ли публичный ключ в папке пользователя
     if [[ ! -f "$USER_KEY_PATH"/authorized_keys ]]; then
       # Копируем публичный ключ в папку назначения
       if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
@@ -137,7 +138,7 @@ if [[ "$ufw_status" == *"inactive"* ]]; then
     echo ""
     read -p "Вы хотите активировать Firewall ? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
-        ufw enable
+        ufw enable -y
         ufw allow $NEW_PORT/tcp
         ufw reload
         ufw status numbered
@@ -160,8 +161,9 @@ echo "1. Создан новый пользователь $username"
 echo "2. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
 ufw_status=$(ufw status | grep -i "")
 if [[ "$ufw_status" == *"inactive"* ]]; then
-  echo "3. Firewall не активирован"
-else echo "3. Firewall активирован, порт SSH $NEW_PORT добавлен в исключения"
+  echo "3. Firewall не активирован."
+else echo "3. Firewall активирован, порт SSH $NEW_PORT добавлен в исключения."
 fi
 echo "   Настройка завершена, сервер теперь в безопастности!"
+echo "   Чтобы изменения вступили в силу, нужно перезагрузить сервер командой «reboot»."
 echo ===========================================================
