@@ -62,15 +62,31 @@ if [[ ! -f "$KEY_PATH" ]]; then
     chown $username:$username "$USER_KEY_PATH"/authorized_keys
     echo "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
 else
-  # Копируем публичный ключ в папку назначения
-  if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
-      chmod 600 "$USER_KEY_PATH"/authorized_keys
-      chown $username:$username "$USER_KEY_PATH"/authorized_keys
-      echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
-  else
-      echo "Ошибка при копировании публичного SSH ключа."
-      exit 1
-  fi
+    if [[ ! -f "$USER_KEY_PATH"/authorized_keys ]]; then
+      # Копируем публичный ключ в папку назначения
+      if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+          chmod 600 "$USER_KEY_PATH"/authorized_keys
+          chown $username:$username "$USER_KEY_PATH"/authorized_keys
+          echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+      else
+          echo "Ошибка при копировании публичного SSH ключа."
+          exit 1
+      fi
+    else
+      echo ""
+      read -p "Публичный ключ в папке $USER_KEY_PATH уже существует, заменить его ? (y/n): " answer
+      if [[ "$answer" == "y" ]]; then
+        # Копируем публичный ключ в папку назначения
+        if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+            chmod 600 "$USER_KEY_PATH"/authorized_keys
+            chown $username:$username "$USER_KEY_PATH"/authorized_keys
+            echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+        else
+            echo "Ошибка при копировании публичного SSH ключа."
+            exit 1
+        fi
+      fi
+    fi
 fi
 
 # Проверка SSH соединения для нового пользователя
