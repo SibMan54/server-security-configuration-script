@@ -6,45 +6,41 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+echo ""
+
 # Создаем нового пользователя
 read -p "Введите имя нового пользователя: " username
-USER=1
+
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
   echo "Пользователь $username уже существует!"
-  USER=0
+  # Выдаем новому пользователю права sudo
+  if usermod -aG sudo "$username"; then
+    echo "Пользователю $username успешно выданы права sudo."
+  else
+    echo "Ошибка при назначении прав sudo пользователю $username."
+    exit 1
+  fi
+else
+  # Создаем нового пользователя
+  if adduser "$username"; then
+    echo "Пользователь $username успешно создан."
+    # Выдаем новому пользователю права sudo
+    if usermod -aG sudo "$username"; then
+      echo "Пользователю $username успешно выданы права sudo."
+    else
+      echo "Ошибка при назначении прав sudo пользователю $username."
+      exit 1
+    fi
+  else
+    echo "Ошибка при создании пользователя $username."
+    exit 1
+  fi
 fi
 
-case $USER in
-0)
-# Выдаем новому пользователю права sudo
-if usermod -aG sudo "$username"; then
-  echo "Пользователю $username успешно выданы права sudo."
-else
-  echo "Ошибка при назначении прав sudo пользователю $username."
-  exit 1
-fi
-;;
-1)
-# Создаем нового пользователя
-if adduser "$username"; then
-  echo "Пользователь $username успешно создан."
-else
-  echo "Ошибка при создании пользователя $username."
-  exit 1
-fi
-# Выдаем новому пользователю права sudo
-if usermod -aG sudo "$username"; then
-  echo "Пользователю $username успешно выданы права sudo."
-else
-  echo "Ошибка при назначении прав sudo пользователю $username."
-  exit 1
-fi
-;;
-esac
+echo ""
 
 # Копирование публичного ключа SSH в папку пользователя
-#
 # Путь к вашему публичному SSH-ключу
 KEY_PATH="/root/.ssh/authorized_keys"
 
@@ -74,9 +70,9 @@ else
     exit 1
 fi
 
+echo ""
 
 # Редактируем файлы конфигурации ssh
-#
 # Запрос порта у пользователя
 read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
 NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
@@ -103,17 +99,40 @@ sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
 # Разрешение авторизации по публичному ключу
 sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
-# Включаем Firewall и добавляем разрешенные порты
-ufw enable
-ufw allow $NEW_PORT/tcp
-ufw reload
-ufw status numbered
+echo ""
+
+# Активация Firewall
+echo ""
+read -p "Вы хотите активировать Firewall ? (y/n): " answer
+
+if [[ "$answer" == "y" ]]; then
+    # Проверяем статус UFW
+    ufw_status=$(ufw status | grep -i "")
+    
+    if [[ "$ufw_status" == *"inactive"* ]]; then
+        echo "Включаем UFW"
+        ufw enable
+        ufw allow $NEW_PORT/tcp
+        ufw reload
+        ufw status numbered
+    else
+        echo "UFW включен."
+        ufw allow $NEW_PORT/tcp
+        ufw reload
+        ufw status numbered
+    fi
+else
+    echo "Проверка статуса Firewall"
+    ufw status verbose
+fi
+
+echo ""
 
 # Перезагрузка службы SSH
 systemctl restart ssh
 
 echo ===========================================================
 echo "Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT. Новый порт добавлен в ufw."
-echo ""
+
 echo "Настройка завершена, сервер теперь в безопастности!"
 echo ===========================================================
