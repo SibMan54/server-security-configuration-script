@@ -24,7 +24,7 @@ if id "$username" &>/dev/null; then
 else
   # Создаем нового пользователя
   if adduser "$username"; then
-    echo "Пользователь $username успешно создан и добавлен в группу sudo."
+    echo "Пользователь $username успешно создан."
     # Выдаем новому пользователю права sudo
     if usermod -aG sudo "$username"; then
       echo "Пользователю $username успешно выданы права sudo."
