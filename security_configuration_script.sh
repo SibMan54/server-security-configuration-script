@@ -107,7 +107,7 @@ if [[ "$answer" == "y" ]]; then
     # Разрешение авторизации по публичному ключу
     sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
-    echo "Защита SSH-соединения настроена. Порт изменен на $PORT, вход root-пользователю и вход по паролю запрещены."
+    echo "Защита SSH-соединения настроена. Порт изменен на $NEW_PORT, вход root-пользователю и вход по паролю запрещены."
     
 else 
     echo "Защита SSH-соединения НЕ настроена, повторите попытку"
@@ -134,9 +134,6 @@ if [[ "$answer" == "y" ]]; then
         ufw reload
         ufw status numbered
     fi
-else
-    echo "Проверка статуса Firewall"
-    ufw status verbose
 fi
 
 echo ""
