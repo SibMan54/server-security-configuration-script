@@ -127,7 +127,7 @@ if [[ "$ufw_status" == *"inactive"* ]]; then
         ufw status numbered
     fi
 else
-    echo "Firewall ужу включен, добавляем порт $NEW_PORT в исключения"
+    echo "Firewall уже включен, добавляем порт $NEW_PORT в исключения"
     ufw allow $NEW_PORT/tcp
     ufw reload
     ufw status numbered
@@ -144,7 +144,7 @@ echo "1. Создан новый пользователь $username"
 echo "2. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
 if [[ "$ufw_status" == *"inactive"* ]]; then
   echo "3. Firewall не активирован"
-else echo "3. Firewall активирован, порт SSH $PORT добавлен в исключения"
+else echo "3. Firewall активирован, порт SSH $NEW_PORT добавлен в исключения"
 fi
-echo "<- Настройка завершена, сервер теперь в безопастности! ->"
+echo "   Настройка завершена, сервер теперь в безопастности!"
 echo ===========================================================
