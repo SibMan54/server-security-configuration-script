@@ -23,15 +23,15 @@ if id "$username" &>/dev/null; then
   fi
 else
   # Создаем нового пользователя
-  if adduser -m "$username" -G sudo; then
+  if adduser "$username"; then
     echo "Пользователь $username успешно создан и добавлен в группу sudo."
-    # # Выдаем новому пользователю права sudo
-    # if usermod -aG sudo "$username"; then
-    #   echo "Пользователю $username успешно выданы права sudo."
-    # else
-    #   echo "Ошибка при назначении прав sudo пользователю $username."
-    #   exit 1
-    # fi
+    # Выдаем новому пользователю права sudo
+    if usermod -aG sudo "$username"; then
+      echo "Пользователю $username успешно выданы права sudo."
+    else
+      echo "Ошибка при назначении прав sudo пользователю $username."
+      exit 1
+    fi
   else
     echo "Ошибка при создании пользователя $username."
     exit 1
