@@ -23,15 +23,15 @@ if id "$username" &>/dev/null; then
   fi
 else
   # Создаем нового пользователя
-  if adduser "$username"; then
-    echo "Пользователь $username успешно создан."
-    # Выдаем новому пользователю права sudo
-    if usermod -aG sudo "$username"; then
-      echo "Пользователю $username успешно выданы права sudo."
-    else
-      echo "Ошибка при назначении прав sudo пользователю $username."
-      exit 1
-    fi
+  if adduser -m "$username" -G sudo; then
+    echo "Пользователь $username успешно создан и добавлен в группу sudo."
+    # # Выдаем новому пользователю права sudo
+    # if usermod -aG sudo "$username"; then
+    #   echo "Пользователю $username успешно выданы права sudo."
+    # else
+    #   echo "Ошибка при назначении прав sudo пользователю $username."
+    #   exit 1
+    # fi
   else
     echo "Ошибка при создании пользователя $username."
     exit 1
@@ -129,10 +129,16 @@ fi
 echo ""
 
 # Перезагрузка службы SSH
-systemctl restart ssh
+# systemctl restart ssh
+service ssh restart
 
 echo ===========================================================
-echo "Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT. Новый порт добавлен в ufw."
-
+echo "1. Создан новый пользователь $username"
+echo "2. Конфигурация SSH успешно изменена. Порт изменен на $NEW_PORT, не забудьте изменть его при переподключении"
+# Проверяем статус UFW
+if [[ "$ufw_status" == *"inactive"* ]]; then
+  echo "3. Firewall не активирован"
+else echo "3. Firewall активирован, порт SSH $PORT добавлен в исключения"
+fi
 echo "Настройка завершена, сервер теперь в безопастности!"
 echo ===========================================================
