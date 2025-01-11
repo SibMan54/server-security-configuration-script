@@ -55,25 +55,27 @@ chown $username:$username "$USER_KEY_PATH"
 if [[ ! -f "$KEY_PATH" ]]; then
     echo "Публичный SSH ключ не найден: $KEY_PATH"
     # Добавление ключа вручную 
-    echo "Скопируйте и вставьте свой публичный ключ SSH, нажмите Ctrl + X, затем Y и Enter для сохранения."
-    read -p "Нажмите Enter для редактирования файла ключа SSH..."
+    echo "Вставьте свой публичный SSH ключ, нажмите Ctrl + X, затем Y и Enter для сохранения."
+    read -p "Нажмите Enter для редактирования файла SSH ключа..."
     nano "$USER_KEY_PATH"/authorized_keys
-fi
-
-# Копируем публичный ключ в папку назначения
-if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
     chmod 600 "$USER_KEY_PATH"/authorized_keys
     chown $username:$username "$USER_KEY_PATH"/authorized_keys
-    echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+    echo "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
 else
-    echo "Ошибка при копировании публичного SSH ключа."
-    exit 1
+  # Копируем публичный ключ в папку назначения
+  if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+      chmod 600 "$USER_KEY_PATH"/authorized_keys
+      chown $username:$username "$USER_KEY_PATH"/authorized_keys
+      echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+  else
+      echo "Ошибка при копировании публичного SSH ключа."
+      exit 1
+  fi
 fi
-
-echo ""
 
 # Редактируем файлы конфигурации ssh
 # Запрос порта у пользователя
+echo ""
 read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
 NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
 
@@ -105,10 +107,10 @@ echo ""
 echo ""
 read -p "Вы хотите активировать Firewall ? (y/n): " answer
 
-if [[ "$answer" == "y" ]]; then
-    # Проверяем статус UFW
-    ufw_status=$(ufw status | grep -i "")
+# Проверяем статус UFW
+ufw_status=$(ufw status | grep -i "")
     
+if [[ "$answer" == "y" ]]; then
     if [[ "$ufw_status" == *"inactive"* ]]; then
         echo "Включаем UFW"
         ufw enable
