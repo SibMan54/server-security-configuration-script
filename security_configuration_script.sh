@@ -115,32 +115,29 @@ else
 fi
 
 # Активация Firewall
-echo ""
-read -p "Вы хотите активировать Firewall ? (y/n): " answer
-
 # Проверяем статус UFW
 ufw_status=$(ufw status | grep -i "")
-    
-if [[ "$answer" == "y" ]]; then
-    if [[ "$ufw_status" == *"inactive"* ]]; then
-        echo "Включаем UFW"
+if [[ "$ufw_status" == *"inactive"* ]]; then
+    echo ""
+    read -p "Вы хотите активировать Firewall ? (y/n): " answer
+    if [[ "$answer" == "y" ]]; then
         ufw enable
         ufw allow $NEW_PORT/tcp
         ufw reload
         ufw status numbered
-    else
-        echo "UFW включен."
-        ufw allow $NEW_PORT/tcp
-        ufw reload
-        ufw status numbered
     fi
+else
+    echo "Firewall ужу включен, добавляем порт $NEW_PORT в исключения"
+    ufw allow $NEW_PORT/tcp
+    ufw reload
+    ufw status numbered
 fi
-
-echo ""
 
 # Перезагрузка службы SSH
 # systemctl restart ssh
 service ssh restart
+
+echo ""
 
 echo ===========================================================
 echo "1. Создан новый пользователь $username"
