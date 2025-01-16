@@ -74,18 +74,22 @@ else
           exit 1
       fi
     else
-        echo ""
-        read -p "Публичный ключ в папке $USER_KEY_PATH уже существует, заменить его ? (y/n): " answer
-        if [[ "$answer" == "y" ]]; then
-            # Копируем публичный ключ в папку назначения
-            if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
-                chmod 600 "$USER_KEY_PATH"/authorized_keys
-                chown $username:$username "$USER_KEY_PATH"/authorized_keys
-                echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
-            else
-                echo "Ошибка при копировании публичного SSH ключа."
-                exit 1
-            fi
+        echo "Публичный ключ в папке $USER_KEY_PATH уже существует!"
+        # Резервная копия исходного файла ssh ключа
+        if cp $USER_KEY_PATH/authorized_keys $USER_KEY_PATH/authorized_keys.bak; then
+            echo "Сделали бэкап существующего ключа в $USER_KEY_PATH/authorized_keys.bak"
+        else
+            echo "Ошибка при создании резервной копии существующего ssh ключа"
+            exit 1
+        fi
+        # Копируем публичный ключ в папку назначения
+        if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
+            chmod 600 "$USER_KEY_PATH"/authorized_keys
+            chown $username:$username "$USER_KEY_PATH"/authorized_keys
+            echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+        else
+            echo "Ошибка при копировании публичного SSH ключа."
+            exit 1
         fi
     fi
 fi
@@ -154,9 +158,22 @@ fi
 # systemctl restart ssh
 service ssh restart
 
+# Установка 3X-UI
+read -p "Вы хотите установить 3X-UI панель ? (y/n): " answer
+if [[ "$answer" == "y" ]]; then
+    if ! command -v x-ui &> /dev/null; then
+        bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/install-3x-ui-add-signed-ssl-cert/refs/heads/main/install_3x-ui_add_ssl_cert.sh)
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi
+    else
+        echo "3X-UI уже установлен."
+    fi
+fi
+
 echo ""
 
-echo ===========================================================
+echo "==========================================================="
 echo "1. Создан новый пользователь $username"
 echo "2. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
 ufw_status=$(ufw status | grep -i "")
@@ -166,4 +183,4 @@ else echo "3. Firewall активирован, порт SSH $NEW_PORT добав
 fi
 echo "   Настройка завершена, сервер теперь в безопастности!"
 echo "   Чтобы изменения вступили в силу, нужно перезагрузить сервер командой «reboot»."
-echo ===========================================================
+echo "==========================================================="
