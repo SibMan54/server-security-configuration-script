@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Проверяем наличие пакета unattended-upgrades
@@ -15,9 +16,7 @@ dpkg-reconfigure --priority=low unattended-upgrades
 # Редактируем конфигурационный файл
 echo "Updating configuration for unattended-upgrades..."
 CONF_FILE="/etc/apt/apt.conf.d/50unattended-upgrades"
-sed -i 's/^\(\s*\)\("\$\{distro_id\}:\$\{distro_codename\}";\)/\1\/\/\2/' $CONF_FILE
-sed -i 's/^\(.*"\w\+-\w\+"\);/\/\/\1;/g' $CONF_FILE
-sed -i 's/^\/\/\(.*"security\"\);/\1;/g' $CONF_FILE
+sed -i 's|^\s*"\${distro_id}:\${distro_codename}";|        // "${distro_id}:${distro_codename}";|g' $CONF_FILE
 sed -i 's|//Unattended-Upgrade::Automatic-Reboot "false";|Unattended-Upgrade::Automatic-Reboot "true";|g' $CONF_FILE
 
 # Проверяем файл 20auto-upgrades

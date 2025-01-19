@@ -159,6 +159,7 @@ fi
 service ssh restart
 
 # Активация автоматических обновлений
+echo ""
 read -p "Вы хотите включить автоматическое обновление ? (y/n): " answer
 if [[ "$answer" == "y" ]]; then
     if systemctl is-active --quiet unattended-upgrades; then
@@ -170,6 +171,7 @@ if [[ "$answer" == "y" ]]; then
 fi
 
 # Установка 3X-UI
+echo ""
 read -p "Вы хотите установить 3X-UI панель ? (y/n): " answer
 if [[ "$answer" == "y" ]]; then
     if ! command -v x-ui &> /dev/null; then
