@@ -3,25 +3,25 @@
 
 # Проверяем наличие пакета unattended-upgrades
 if ! which unattended-upgrades > /dev/null 2>&1; then
-    echo "Installing unattended-upgrades..."
+    echo "Установка unattended-upgrades..."
     apt update && apt install unattended-upgrades -y
 else
-    echo "unattended-upgrades is already installed."
+    echo "unattended-upgrades уже установлен."
 fi
 
 # Настройка unattended-upgrades
-echo "Configuring unattended-upgrades..."
+echo "Конфигурация unattended-upgrades..."
 dpkg-reconfigure --priority=low unattended-upgrades
 
 # Редактируем конфигурационный файл
-echo "Updating configuration for unattended-upgrades..."
 CONF_FILE="/etc/apt/apt.conf.d/50unattended-upgrades"
+echo "Редактируем файл конфигурации $CONF_FILE"
 sed -i 's|^\s*"\${distro_id}:\${distro_codename}";|        // "${distro_id}:${distro_codename}";|g' $CONF_FILE
 sed -i 's|//Unattended-Upgrade::Automatic-Reboot "false";|Unattended-Upgrade::Automatic-Reboot "true";|g' $CONF_FILE
 
 # Проверяем файл 20auto-upgrades
 AUTO_UPGRADES_FILE="/etc/apt/apt.conf.d/20auto-upgrades"
-echo "Ensuring daily updates are enabled in $AUTO_UPGRADES_FILE..."
+echo "Включаем ежедневные обновления в $AUTO_UPGRADES_FILE..."
 if ! grep -q "APT::Periodic::Update-Package-Lists" $AUTO_UPGRADES_FILE; then
     echo 'APT::Periodic::Update-Package-Lists "1";' >> $AUTO_UPGRADES_FILE
 else
@@ -40,7 +40,7 @@ systemctl enable unattended-upgrades
 
 # Проверка статуса службы
 if systemctl is-active --quiet unattended-upgrades; then
-    echo "unattended-upgrades is running."
+    echo "Служба unattended-upgrades запущена."
 else
-    echo "unattended-upgrades is not running."
+    echo "Служба unattended-upgrades не запущена."
 fi
