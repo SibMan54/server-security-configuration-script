@@ -158,6 +158,17 @@ fi
 # systemctl restart ssh
 service ssh restart
 
+# Активация автоматических обновлений
+read -p "Вы хотите включить автоматическое обновление ? (y/n): " answer
+if [[ "$answer" == "y" ]]; then
+    if systemctl is-active --quiet unattended-upgrades; then
+        echo "Автоматическое обновление уже включено"
+    else
+        # включаем автообновления
+        bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh)
+    fi
+fi
+
 # Установка 3X-UI
 read -p "Вы хотите установить 3X-UI панель ? (y/n): " answer
 if [[ "$answer" == "y" ]]; then
