@@ -129,7 +129,6 @@ if [[ "$answer" == "y" ]]; then
     sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
     echo "Защита SSH-соединения настроена. Порт изменен на $NEW_PORT, вход root-пользователю и вход по паролю запрещены."
-
 else
     echo "Защита SSH-соединения НЕ настроена, повторите попытку"
     exit 0
@@ -185,15 +184,24 @@ if [[ "$answer" == "y" ]]; then
 fi
 
 echo ""
-
 echo "==========================================================="
 echo "1. Создан новый пользователь $username"
-echo "2. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
-ufw_status=$(ufw status | grep -i "")
-if [[ "$ufw_status" == *"inactive"* ]]; then
-  echo "3. Firewall не активирован."
-else echo "3. Firewall активирован, порт SSH $NEW_PORT добавлен в список разрешенных."
+echo "2. Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
+echo "3. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
+counter=3
+ufw_status=$(sudo ufw status | grep -o "Status: active")
+if [ "$ufw_status" == "Status: active" ]; then
+    counter=$((counter + 1))
+    echo "$counter. Firewall активирован, порт $NEW_PORT добавляем в разрешенные."
 fi
-echo "   Настройка завершена, сервер теперь в безопастности!"
-echo "   Чтобы изменения вступили в силу, нужно перезагрузить сервер командой «reboot»."
+if systemctl is-active --quiet unattended-upgrades; then
+    counter=$((counter + 1))
+    echo "$counter. Автоматическая проверка и установка обновлений безопасности включена."
+fi
+if command -v x-ui &> /dev/null; then
+    counter=$((counter + 1))
+    echo "$counter. Панель 3X-UI установлена."
+fi
+echo ">> Настройка завершена, сервер теперь в безопастности!"
+echo ">> Чтобы изменения вступили в силу, нужно перезагрузить сервер командой «reboot»."
 echo "==========================================================="
