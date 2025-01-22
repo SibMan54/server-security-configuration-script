@@ -6,7 +6,18 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo ""
+# Функция для создания резервной копии файла
+backup_file() {
+    local file="$1"
+    local backup="$1.bak"
+
+    if [ ! -f "$backup" ]; then
+        echo "Создаю резервную копию файла $file..."
+        cp "$file" "$backup"
+    else
+        echo "Резервная копия файла $file уже существует."
+    fi
+}
 
 # Создаем нового пользователя
 read -p "Введите имя нового пользователя: " username
@@ -38,61 +49,48 @@ else
   fi
 fi
 
-echo ""
 
 # Копирование публичного ключа SSH в папку пользователя
 # Путь к вашему публичному SSH-ключу
-KEY_PATH="/root/.ssh/authorized_keys"
+ROOT_KEY_PATH="/root/.ssh/authorized_keys"
 
-# Путь к папке назначения (например, в .ssh)
-USER_KEY_PATH="/home/$username/.ssh/"
-# Создаем папку ssh
-mkdir -p "$USER_KEY_PATH"
-chmod 700 "$USER_KEY_PATH"
-chown $username:$username "$USER_KEY_PATH"
+# Путь к файлу ключа в папке пользователя
+USER_KEY_PATH="/home/$username/.ssh/authorized_keys"
 
-# Проверка, существует ли публичный ключ
-if [[ ! -f "$KEY_PATH" ]]; then
-    echo "Публичный SSH ключ не найден: $KEY_PATH"
-    # Добавление ключа вручную
-    echo "Вставьте свой публичный SSH ключ, нажмите Ctrl + X, затем Y и Enter для сохранения."
-    read -p "Нажмите Enter для редактирования файла SSH ключа..."
-    nano "$USER_KEY_PATH"/authorized_keys
-    chmod 600 "$USER_KEY_PATH"/authorized_keys
-    chown $username:$username "$USER_KEY_PATH"/authorized_keys
+# Создаем папку .ssh, если она не существует
+USER_SSH_DIR=$(dirname "$USER_KEY_PATH")
+if [[ ! -d "$USER_SSH_DIR" ]]; then
+    echo "Создаем папку .ssh для пользователя $username..."
+    mkdir -p "$USER_SSH_DIR"
+    chmod 700 "$USER_SSH_DIR"
+    chown "$username:$username" "$USER_SSH_DIR"
+fi
+
+# Проверяем, существует ли публичный ключ
+if [[ ! -f "$ROOT_KEY_PATH" ]]; then
+    echo "Публичный SSH ключ не найден: $ROOT_KEY_PATH"
+    echo "Вставьте свой публичный SSH ключ вручную:"
+    echo "После ввода нажмите Ctrl + X, затем Y и Enter для сохранения."
+    read -p "Нажмите Enter для редактирования файла authorized_keys..."
+    nano "$USER_KEY_PATH"
+    chmod 600 "$USER_KEY_PATH"
+    chown "$username:$username" "$USER_KEY_PATH"
     echo "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
 else
-    # Проверка, существует ли публичный ключ в папке пользователя
-    if [[ ! -f "$USER_KEY_PATH"/authorized_keys ]]; then
-      # Копируем публичный ключ в папку назначения
-      if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
-          chmod 600 "$USER_KEY_PATH"/authorized_keys
-          chown $username:$username "$USER_KEY_PATH"/authorized_keys
-          echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
-      else
-          echo "Ошибка при копировании публичного SSH ключа."
-          exit 1
-      fi
+    # Создаем резервную копию существующего файла ключа, если он есть
+    backup_file "$USER_KEY_PATH"
+
+    # Копируем публичный ключ в папку назначения
+    if cp -f "$ROOT_KEY_PATH" "$USER_KEY_PATH"; then
+        chmod 600 "$USER_KEY_PATH"
+        chown "$username:$username" "$USER_KEY_PATH"
+        echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
     else
-        echo "Публичный ключ в папке $USER_KEY_PATH уже существует!"
-        # Резервная копия исходного файла ssh ключа
-        if cp $USER_KEY_PATH/authorized_keys $USER_KEY_PATH/authorized_keys.bak; then
-            echo "Сделали бэкап существующего ключа в $USER_KEY_PATH/authorized_keys.bak"
-        else
-            echo "Ошибка при создании резервной копии существующего ssh ключа"
-            exit 1
-        fi
-        # Копируем публичный ключ в папку назначения
-        if cp -f "$KEY_PATH" "$USER_KEY_PATH"; then
-            chmod 600 "$USER_KEY_PATH"/authorized_keys
-            chown $username:$username "$USER_KEY_PATH"/authorized_keys
-            echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
-        else
-            echo "Ошибка при копировании публичного SSH ключа."
-            exit 1
-        fi
+        echo "Ошибка при копировании публичного SSH ключа."
+        exit 1
     fi
 fi
+
 
 # Проверка SSH соединения для нового пользователя
 echo ""
@@ -103,14 +101,24 @@ if [[ "$answer" == "y" ]]; then
     # Редактируем файлы конфигурации ssh
     # Запрос порта у пользователя
     echo ""
-    read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
-    NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
+    while true; do
+        read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
+        NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
+
+        # Проверка, используется ли порт
+        if ss -tuln | grep -q ":$NEW_PORT\b"; then
+            echo "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
+        else
+            echo "Порт $NEW_PORT свободен."
+            break
+        fi
+    done
 
     # Путь к файлу конфигурации SSH
     SSH_CONFIG="/etc/ssh/sshd_config"
 
-    # Резервная копия исходного файла конфигурации
-    cp $SSH_CONFIG ${SSH_CONFIG}.bak
+    # Резервное копирование файла конфигурации SSH
+    backup_file "$SSH_CONFIG"
 
     # Изменение порта SSH
     sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
@@ -133,6 +141,7 @@ else
     echo "Защита SSH-соединения НЕ настроена, повторите попытку"
     exit 0
 fi
+
 
 # Активация Firewall
 # Проверяем статус UFW
