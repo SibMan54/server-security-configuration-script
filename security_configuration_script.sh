@@ -204,9 +204,15 @@ if [ "$ufw_status" == "Status: active" ]; then
     counter=$((counter + 1))
     echo "$counter. Firewall активирован, порт $NEW_PORT добавляем в разрешенные."
 fi
+CONF_FILE="/etc/apt/apt.conf.d/50unattended-upgrades"
 if systemctl is-active --quiet unattended-upgrades; then
+    if [[ -f "CONF_FILE" ]] then
+        counter=$((counter + 1))
+        echo "$counter. Автоматическая проверка и установка обновлений безопасности включена и настроена."
+    else
     counter=$((counter + 1))
-    echo "$counter. Автоматическая проверка и установка обновлений безопасности включена."
+    echo "$counter. Автоматическая проверка и установка обновлений включена, но изменения в конфигурацию не внесены"
+    fi
 fi
 if command -v x-ui &> /dev/null; then
     counter=$((counter + 1))
