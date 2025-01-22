@@ -77,8 +77,10 @@ if [[ ! -f "$ROOT_KEY_PATH" ]]; then
     chown "$username:$username" "$USER_KEY_PATH"
     echo "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
 else
+    if [[ -f "$USER_KEY_PATH" ]]; then
     # Создаем резервную копию существующего файла ключа, если он есть
     backup_file "$USER_KEY_PATH"
+    fi
 
     # Копируем публичный ключ в папку назначения
     if cp -f "$ROOT_KEY_PATH" "$USER_KEY_PATH"; then
@@ -136,6 +138,10 @@ if [[ "$answer" == "y" ]]; then
     # Разрешение авторизации по публичному ключу
     sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
+    # Перезагрузка службы SSH
+    # systemctl restart ssh
+    service ssh restart
+
     echo "Защита SSH-соединения настроена. Порт изменен на $NEW_PORT, вход root-пользователю и вход по паролю запрещены."
 else
     echo "Защита SSH-соединения НЕ настроена, повторите попытку"
@@ -162,9 +168,6 @@ else
     ufw status numbered
 fi
 
-# Перезагрузка службы SSH
-# systemctl restart ssh
-service ssh restart
 
 # Активация автоматических обновлений
 echo ""
@@ -173,6 +176,7 @@ if [[ "$answer" == "y" ]]; then
     # включаем автообновления
     bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh)
 fi
+
 
 # Установка 3X-UI
 echo ""
@@ -187,6 +191,7 @@ if [[ "$answer" == "y" ]]; then
         echo "3X-UI уже установлен."
     fi
 fi
+
 
 echo ""
 echo "==========================================================="
