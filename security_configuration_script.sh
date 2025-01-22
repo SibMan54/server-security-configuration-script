@@ -93,59 +93,61 @@ else
     fi
 fi
 
+# Конфигурация SSH
 
-# Проверка SSH соединения для нового пользователя
+# Вычисляем номер текущего порта SSH
+SSH_PORT=$(grep -i "Port " /etc/ssh/sshd_config | awk '{print $2}')
+
+# Запрос порта у пользователя
 echo ""
-echo "Перед тем как продолжить, попробуйте подключиться к серверу под пользователем $username"
+while true; do
+    read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
+    NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
+
+    # Проверка, используется ли порт
+    if ss -tuln | grep -q ":$NEW_PORT\b"; then
+        echo "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
+    else
+        echo "Порт $NEW_PORT свободен."
+        break
+    fi
+done
+
+# Путь к файлу конфигурации SSH
+SSH_CONFIG="/etc/ssh/sshd_config"
+
+# Резервное копирование файла конфигурации SSH
+backup_file "$SSH_CONFIG"
+
+# Изменение порта SSH
+sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
+sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
+
+# Запрет авторизации для root
+sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+
+# Запрет авторизации по паролю
+sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
+sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
+
+# Разрешение авторизации по публичному ключу
+sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
+
+# Перезапуск SSH-сервиса для применения изменений
+echo "Перезапускаем SSH-сервис..."
+systemctl restart ssh
+
+# Проверка подключения после изменений
 echo ""
-read -p "Получилось ли у вас подключиться по SSH от имени пользователя $username ? (y/n): " answer
+echo "Теперь попробуйте подключиться по SSH под новым пользователем $username и портом $SSH_PORT или $NEW_PORT..."
+read -p "Получилось ли подключиться? (y/n): " answer
 if [[ "$answer" == "y" ]]; then
-    # Редактируем файлы конфигурации ssh
-    # Запрос порта у пользователя
-    echo ""
-    while true; do
-        read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
-        NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
-
-        # Проверка, используется ли порт
-        if ss -tuln | grep -q ":$NEW_PORT\b"; then
-            echo "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
-        else
-            echo "Порт $NEW_PORT свободен."
-            break
-        fi
-    done
-
-    # Путь к файлу конфигурации SSH
-    SSH_CONFIG="/etc/ssh/sshd_config"
-
-    # Резервное копирование файла конфигурации SSH
-    backup_file "$SSH_CONFIG"
-
-    # Изменение порта SSH
-    sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
-    sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
-
-    # Запрет авторизации для root
-    sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
-    sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
-
-    # Запрет авторизации по паролю
-    sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
-    sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
-    sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
-
-    # Разрешение авторизации по публичному ключу
-    sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
-
-    # Перезагрузка службы SSH
-    # systemctl restart ssh
-    service ssh restart
-
-    echo "Защита SSH-соединения настроена. Порт изменен на $NEW_PORT, вход root-пользователю и вход по паролю запрещены."
+    echo "SSH-соединение успешно установлено. Защита SSH-соединения настроена."
 else
-    echo "Защита SSH-соединения НЕ настроена, повторите попытку"
-    exit 0
+    echo "Ошибка при подключении по SSH. Пожалуйста, убедитесь, что настройки правильные."
+    exit 1
 fi
 
 
@@ -211,7 +213,7 @@ if systemctl is-active --quiet unattended-upgrades; then
         echo "$counter. Автоматическая проверка и установка обновлений безопасности включена и настроена."
     else
     counter=$((counter + 1))
-    echo "$counter. Автоматическая проверка и установка обновлений включена, но изменения в конфигурацию не внесены"
+    echo "$counter. Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены."
     fi
 fi
 if command -v x-ui &> /dev/null; then
