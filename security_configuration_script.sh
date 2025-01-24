@@ -1,8 +1,35 @@
 #!/bin/bash
 
+##### COLOR #####
+
+# Определение цветов
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[1;36m'
+NC='\033[0m' # Сброс цвета
+
+# Функции для цветного вывода
+info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+##### END COLOR #####
+
+
 # Проверяем, запущен ли скрипт от имени root
 if [ "$EUID" -ne 0 ]; then
-  echo "Пожалуйста, запустите этот скрипт от имени root."
+  error "Пожалуйста, запустите этот скрипт от имени root."
   exit 1
 fi
 
@@ -12,83 +39,70 @@ backup_file() {
     local backup="$1.bak"
 
     if [ ! -f "$backup" ]; then
-        echo "Создаю резервную копию файла $file..."
+        info "Создаю резервную копию файла $file..."
         cp "$file" "$backup"
     else
-        echo "Резервная копия файла $file уже существует."
+        success "Резервная копия файла $file уже существует."
     fi
 }
 
+
 # Создаем нового пользователя
-read -p "Введите имя нового пользователя: " username
+read -p "$(echo -e "${YELLOW}Введите имя нового пользователя: ${NC}")" username
 
 # Проверка, существует ли пользователь
 if id "$username" &>/dev/null; then
-  echo "Пользователь $username уже существует!"
-  # Выдаем новому пользователю права sudo
-  if usermod -aG sudo "$username"; then
-    echo "Пользователю $username успешно выданы права sudo."
-  else
-    echo "Ошибка при назначении прав sudo пользователю $username."
-    exit 1
-  fi
-else
-  # Создаем нового пользователя
-  if adduser "$username"; then
-    echo "Пользователь $username успешно создан."
-    # Выдаем новому пользователю права sudo
+    warning "Пользователь $username уже существует!"
     if usermod -aG sudo "$username"; then
-      echo "Пользователю $username успешно выданы права sudo."
+        success "Пользователю $username успешно выданы права sudo."
     else
-      echo "Ошибка при назначении прав sudo пользователю $username."
-      exit 1
+        error "Ошибка при назначении прав sudo пользователю $username."
+        exit 1
     fi
-  else
-    echo "Ошибка при создании пользователя $username."
-    exit 1
-  fi
+else
+    if adduser "$username"; then
+        success "Пользователь $username успешно создан."
+        if usermod -aG sudo "$username"; then
+            success "Пользователю $username успешно выданы права sudo."
+        else
+            error "Ошибка при назначении прав sudo пользователю $username."
+            exit 1
+        fi
+    else
+        error "Ошибка при создании пользователя $username."
+        exit 1
+    fi
 fi
 
-
-# Копирование публичного ключа SSH в папку пользователя
-# Путь к вашему публичному SSH-ключу
+# Копирование публичного ключа SSH
 ROOT_KEY_PATH="/root/.ssh/authorized_keys"
-
-# Путь к файлу ключа в папке пользователя
 USER_KEY_PATH="/home/$username/.ssh/authorized_keys"
-
-# Создаем папку .ssh, если она не существует
 USER_SSH_DIR=$(dirname "$USER_KEY_PATH")
+
 if [[ ! -d "$USER_SSH_DIR" ]]; then
-    echo "Создаем папку .ssh для пользователя $username..."
+    info "Создаем папку .ssh для пользователя $username..."
     mkdir -p "$USER_SSH_DIR"
     chmod 700 "$USER_SSH_DIR"
     chown "$username:$username" "$USER_SSH_DIR"
 fi
 
-# Проверяем, существует ли публичный ключ
 if [[ ! -f "$ROOT_KEY_PATH" ]]; then
-    echo "Публичный SSH ключ не найден: $ROOT_KEY_PATH"
-    echo "Вставьте свой публичный SSH ключ вручную:"
-    echo "После ввода нажмите Ctrl + X, затем Y и Enter для сохранения."
-    read -p "Нажмите Enter для редактирования файла authorized_keys..."
+    warning "Публичный SSH ключ не найден: $ROOT_KEY_PATH"
+    read -p "$(echo -e "${YELLOW}Вставьте свой публичный SSH ключ вручную: (Ctrl + X, затем Y и Enter для сохранения): ${NC}")"
     nano "$USER_KEY_PATH"
     chmod 600 "$USER_KEY_PATH"
     chown "$username:$username" "$USER_KEY_PATH"
-    echo "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
+    success "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
 else
     if [[ -f "$USER_KEY_PATH" ]]; then
-    # Создаем резервную копию существующего файла ключа, если он есть
-    backup_file "$USER_KEY_PATH"
+        backup_file "$USER_KEY_PATH"
     fi
-
-    # Копируем публичный ключ в папку назначения
     if cp -f "$ROOT_KEY_PATH" "$USER_KEY_PATH"; then
         chmod 600 "$USER_KEY_PATH"
         chown "$username:$username" "$USER_KEY_PATH"
-        echo "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+        success "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
     else
-        echo "Ошибка при копировании публичного SSH ключа."
+        error "Ошибка при копировании публичного SSH ключа."
         exit 1
     fi
 fi
@@ -96,25 +110,22 @@ fi
 # Конфигурация SSH
 
 # Вычисляем номер текущего порта SSH
-SSH_PORT=$(grep -i "Port " /etc/ssh/sshd_config | awk '{print $2}')
+# SSH_PORT=$(grep -i "Port " /etc/ssh/sshd_config | awk '{print $2}')
+SSH_PORT=$(awk '$1 == "Port" {print $2; exit}' /etc/ssh/sshd_config)
+info "Текущий порт SSH: $SSH_PORT"
+# Путь к файлу конфигурации SSH
+SSH_CONFIG="/etc/ssh/sshd_config"
 
-# Запрос порта у пользователя
-echo ""
 while true; do
-    read -p "Введите желаемый порт SSH (по умолчанию 2222): " NEW_PORT
-    NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
-
-    # Проверка, используется ли порт
+    read -p "$(echo -e "${YELLOW}Введите желаемый порт SSH (по умолчанию 2222): ${NC}")" NEW_PORT
+    NEW_PORT=${NEW_PORT:-2222}
     if ss -tuln | grep -q ":$NEW_PORT\b"; then
-        echo "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
+        warning "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
     else
-        echo "Порт $NEW_PORT свободен."
+        success "Порт $NEW_PORT свободен."
         break
     fi
 done
-
-# Путь к файлу конфигурации SSH
-SSH_CONFIG="/etc/ssh/sshd_config"
 
 # Резервное копирование файла конфигурации SSH
 backup_file "$SSH_CONFIG"
@@ -136,95 +147,104 @@ sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
 sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
 
 # Перезапуск SSH-сервиса для применения изменений
-echo "Перезапускаем SSH-сервис..."
-systemctl restart ssh
-
-# Проверка подключения после изменений
-echo ""
-echo "Попробуйте подключиться по SSH с новым пользователем $username и портом $SSH_PORT или $NEW_PORT..."
-read -p "Получилось ли подключиться? (y/n): " answer
-if [[ "$answer" == "y" ]]; then
-    echo "SSH-соединение успешно установлено. Защита SSH-соединения настроена."
+info "Перезапускаем SSH-сервис..."
+if systemctl restart ssh; then
+    success "SSH-сервис успешно перезапущен."
 else
-    # Восстанавливаем конфиг SSH
-    cp -f "$SSH_CONFIG".bak "$SSH_CONFIG"
-    echo "Ошибка при подключении по SSH. Защита SSH-соединения не настроена."
-    echo "Пожалуйста, проверьте правильность данных для подключения и ключей SSH и повторите попытку."
+    error "Ошибка при перезапуске SSH-сервиса."
+    exit 1
+fi
+
+# Проверка подключения
+info "Попробуйте подключиться по SSH с новым пользователем $username и портом $NEW_PORT..."
+read -p "$(echo -e "${YELLOW}Получилось ли подключиться? (y/n): ${NC}")" answer
+if [[ "$answer" == "y" ]]; then
+    success "SSH-соединение успешно установлено."
+else
+    error "Ошибка подключения. Восстанавливаем конфигурацию SSH..."
+    cp -f "$SSH_CONFIG.bak" "$SSH_CONFIG"
+    systemctl restart ssh
+    warning "Пожалуйста, проверьте правильность данных для подключения и ключей SSH и повторите попытку."
     exit 1
 fi
 
 
 # Активация Firewall
-# Проверяем статус UFW
 ufw_status=$(ufw status | grep -i "")
 if [[ "$ufw_status" == *"inactive"* ]]; then
-    echo ""
-    read -p "Вы хотите активировать Firewall ? (y/n): " answer
+    read -p "$(echo -e "${YELLOW}Вы хотите активировать Firewall? (y/n): ${NC}")" answer
     if [[ "$answer" == "y" ]]; then
         # Активируем Firewall
         echo "y" | ufw enable > /dev/null 2>&1
-        echo "Firewall активирован."
+        success "Firewall активирован."
         ufw allow $NEW_PORT/tcp
+        success "Порт $NEW_PORT добавлен в список разрешённых (или уже был добавлен)."
         ufw reload
         ufw status numbered
     fi
 else
-    echo "Firewall уже включен, добавляем порт $NEW_PORT в список разрешенных"
+    success "Firewall уже активирован. Добавляем порт $NEW_PORT..."
     ufw allow $NEW_PORT/tcp
+    success "Порт $PORT добавлен в список разрешённых (или уже был добавлен)."
     ufw reload
     ufw status numbered
 fi
 
-
 # Активация автоматических обновлений
-echo ""
-read -p "Вы хотите включить автоматическое обновление ? (y/n): " answer
+read -p "$(echo -e "${YELLOW}Вы хотите включить автоматическое обновление? (y/n): ${NC}")" answer
 if [[ "$answer" == "y" ]]; then
-    # включаем автообновления
-    bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh)
+    if bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh); then
+        success "Автоматические обновления успешно включены."
+    else
+        error "Ошибка при активации автоматических обновлений."
+    fi
 fi
 
-
 # Установка 3X-UI
-echo ""
-read -p "Вы хотите установить 3X-UI панель ? (y/n): " answer
-if [[ "$answer" == "y" ]]; then
-    if ! command -v x-ui &> /dev/null; then
-        bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/install-3x-ui-add-signed-ssl-cert/refs/heads/main/install_3x-ui_add_ssl_cert.sh)
-        if [ $? -ne 0 ]; then
+if ! command -v x-ui &> /dev/null; then
+    read -p "$(echo -e "${YELLOW}Вы хотите установить 3X-UI панель? (y/n): ${NC}")" answer
+    if [[ "$answer" == "y" ]]; then
+        if bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/install-3x-ui-add-signed-ssl-cert/refs/heads/main/install_3x-ui_add_ssl_cert.sh); then
+            success "3X-UI успешно установлен."
+        else
+            error "Ошибка установки 3X-UI."
             exit 1
         fi
     else
-        echo "3X-UI уже установлен."
+        warning "Установка 3X-UI отменена пользователем."
     fi
+else
+    success "3X-UI уже установлен."
 fi
 
 
 echo ""
 echo "==========================================================="
-echo "1. Создан новый пользователь $username"
-echo "2. Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
-echo "3. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
+success "1. Создан новый пользователь $username"
+success "2. Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
+success "3. Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу."
 counter=3
 ufw_status=$(sudo ufw status | grep -o "Status: active")
 if [ "$ufw_status" == "Status: active" ]; then
     counter=$((counter + 1))
-    echo "$counter. Firewall активирован, порт $NEW_PORT добавляем в разрешенные."
+    success "$counter. Firewall активирован, порт $NEW_PORT добавляем в разрешенные."
 fi
 CONF_BAK_FILE="/etc/apt/apt.conf.d/50unattended-upgrades.bak"
 if systemctl is-active --quiet unattended-upgrades; then
     if [[ -f "$CONF_BAK_FILE" ]]; then
         counter=$((counter + 1))
-        echo "$counter. Автоматическая проверка и установка обновлений безопасности включена и настроена."
+        success "$counter. Автоматическая проверка и установка обновлений безопасности включена и настроена."
     else
     counter=$((counter + 1))
-    echo "$counter. Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены."
+    warning "$counter. Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены."
     fi
 fi
 if command -v x-ui &> /dev/null; then
     counter=$((counter + 1))
-    echo "$counter. Панель 3X-UI установлена."
+    success "$counter. Панель 3X-UI установлена."
 fi
-echo ">> Настройка завершена, сервер теперь в безопастности!"
-echo ">> Чтобы изменения вступили в силу, нужно перезагрузить сервер командой «reboot»."
+success ">> Настройка завершена, сервер теперь в безопастности!"
+warning "Чтобы изменения вступили в силу, необходимо:"
+echo -e "${CYAN}- Перезагрузить SSH-сервис командой ->${NC} systemctl restart ssh"
+echo -e "${CYAN}- Или полностью перезагрузить сервер командой ->${NC} reboot"
 echo "==========================================================="
