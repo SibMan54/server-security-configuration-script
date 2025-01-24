@@ -220,28 +220,28 @@ fi
 
 echo ""
 echo "==========================================================="
-echo -e "1. ${GREEN}Создан новый пользователь $username.${NC}"
-echo -e "2. ${GREEN}Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH.${NC}"
-echo -e "3. ${GREEN}Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу.${NC}"
+echo -e "1. ${BLUE}Создан новый пользователь $username.${NC}"
+echo -e "2. ${BLUE}Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH.${NC}"
+echo -e "3. ${BLUE}Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу.${NC}"
 counter=3
 ufw_status=$(sudo ufw status | grep -o "Status: active")
 if [ "$ufw_status" == "Status: active" ]; then
     counter=$((counter + 1))
-    echo -e "$counter. ${GREEN}Firewall активирован, порт $NEW_PORT добавляем в разрешенные.${NC}"
+    echo -e "$counter. ${BLUE}Firewall активирован, порт $NEW_PORT добавляем в разрешенные.${NC}"
 fi
 CONF_BAK_FILE="/etc/apt/apt.conf.d/50unattended-upgrades.bak"
 if systemctl is-active --quiet unattended-upgrades; then
     if [[ -f "$CONF_BAK_FILE" ]]; then
         counter=$((counter + 1))
-        echo -e "$counter. ${GREEN}Автоматическая проверка и установка обновлений безопасности включена и настроена.${NC}"
+        echo -e "$counter. ${BLUE}Автоматическая проверка и установка обновлений безопасности включена и настроена.${NC}"
     else
     counter=$((counter + 1))
-    echo -e "$counter. ${BLUE}Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены.${NC}"
+    echo -e "$counter. ${YELLOW}Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены.${NC}"
     fi
 fi
 if command -v x-ui &> /dev/null; then
     counter=$((counter + 1))
-    echo -e "$counter. ${GREEN}Панель 3X-UI установлена.${NC}"
+    echo -e "$counter. ${BLUE}Панель 3X-UI установлена.${NC}"
 fi
 echo -e "${GREEN}✅ Настройка завершена, сервер теперь в безопастности!${NC}"
 echo -e "${YELLOW}⚠️ Чтобы изменения вступили в силу, необходимо:${NC}"
