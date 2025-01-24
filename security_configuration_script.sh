@@ -161,7 +161,9 @@ if [[ "$ufw_status" == *"inactive"* ]]; then
     echo ""
     read -p "Вы хотите активировать Firewall ? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
-        ufw enable
+        # Активируем Firewall
+        echo "y" | ufw enable > /dev/null 2>&1
+        echo "Firewall активирован."
         ufw allow $NEW_PORT/tcp
         ufw reload
         ufw status numbered
