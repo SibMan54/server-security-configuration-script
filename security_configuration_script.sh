@@ -107,11 +107,12 @@ else
     fi
 fi
 
+
 ### Настройка SSH ###
-info "Настройка SSH"
 
 # Вычисляем номер текущего порта SSH
 SSH_PORT=$(grep -i "Port " /etc/ssh/sshd_config | awk '{print $2}')
+info "Текущий порт SSH $SSH_PORT"
 
 # Запрос порта у пользователя
 while true; do
@@ -127,57 +128,57 @@ while true; do
     fi
 done
 
+# Функция для добавления или изменения параметра в конфиге SSH
+configure_ssh() {
+    local config_file="$1"
+    local param="$2"
+    local value="$3"
+
+    # Проверка: параметр существует (закомментирован или активен)
+    if grep -qE "^#?$param\b" "$config_file"; then
+        # Убираем комментарий и заменяем значение только у первой строки с параметром
+        sed -i -E "0,/^#?$param\b/ s|^#?$param.*|$param $value|" "$config_file"
+    fi
+}
+
 # Путь к файлу конфигурации SSH
 SSH_CONFIG="/etc/ssh/sshd_config"
 
 # Резервное копирование файла конфигурации SSH
 backup_file "$SSH_CONFIG"
 
+# Применение изменений в конфиге SSH
+info "Настраиваем SSH-соединение..."
+
 # Изменение порта SSH
-sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
-sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
-info "Порт изменен на $NEW_PORT"
-
+configure_ssh "$SSH_CONFIG" "Port" "$NEW_PORT"
 # Запрет авторизации для root
-sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
-sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
-info "Авторизация для root запрещена"
-
+configure_ssh "$SSH_CONFIG" "PermitRootLogin" "no"
 # Запрет авторизации по паролю
-sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
-sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
-sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
-info "Авторизация по паролю запрещена"
-
+configure_ssh "$SSH_CONFIG" "PasswordAuthentication" "no"
+configure_ssh "$SSH_CONFIG" "PermitEmptyPasswords" "no"
 # Разрешение авторизации по публичному ключу
-sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
-info "Разрешена авторизации по публичному ключу"
+configure_ssh "$SSH_CONFIG" "PubkeyAuthentication" "yes"
+# Установка таймаута сеанса
+configure_ssh "$SSH_CONFIG" "ClientAliveInterval" "300"
+configure_ssh "$SSH_CONFIG" "ClientAliveCountMax" "2"
+# Ограничение попыток авторизации за одну сессию SSH
+configure_ssh "$SSH_CONFIG" "MaxAuthTries" "3"
+# Ограничение времени до завершения аутентификации пользователя
+configure_ssh "$SSH_CONFIG" "LoginGraceTime" "20"
+# Отключение перенаправления TCP-трафика
+# configure_ssh "$SSH_CONFIG" "AllowTcpForwarding" "no"
+# Отключение перенаправления X11, которое позволяет запускать графические приложения через SSH
+# configure_ssh "$SSH_CONFIG" "X11Forwarding" "no"
 
-# Принудительное использование только протокола SSHv2
-if ! grep -q "^Protocol 2" "$SSH_CONFIG"; then
-    echo "Protocol 2" >> "$SSH_CONFIG"
-    success "Протокол SSHv2 включен."
-else
-    info "Протокол SSHv2 уже активен."
-fi
-
-# Установка тайм-аутов для неактивных соединений
-if ! grep -q "^ClientAliveInterval" "$SSH_CONFIG"; then
-    echo "ClientAliveInterval 300" >> "$SSH_CONFIG"
-    echo "ClientAliveCountMax 0" >> "$SSH_CONFIG"
-    success "Тайм-ауты для неактивных SSH-соединений установлены."
-else
-    info "Тайм-ауты для SSH-соединений уже настроены."
-fi
-
-# Перезапуск SSH-сервиса для применения изменений
-info "Перезапускаем SSH-сервис..."
+info "SSH конфигурация обновлена. Перезапускаем SSH-сервис..."
 if systemctl restart ssh; then
-    success "SSH-сервис успешно перезапущен."
+    success "Сервис SSH успешно перезапущен."
 else
     error "Ошибка при перезапуске SSH-сервиса. Проверьте конфигурацию."
     exit 1
 fi
+
 
 # Проверка подключения
 info "Попробуйте подключиться по SSH с новым пользователем $username и портом $SSH_PORT или $NEW_PORT ..."
