@@ -107,25 +107,28 @@ else
     fi
 fi
 
-# Конфигурация SSH
+### Настройка SSH ###
+info "Настройка SSH"
 
 # Вычисляем номер текущего порта SSH
 SSH_PORT=$(grep -i "Port " /etc/ssh/sshd_config | awk '{print $2}')
-# SSH_PORT=$(awk '$1 == "Port" {print $2; exit}' /etc/ssh/sshd_config)
-info "Текущий порт SSH: $SSH_PORT"
-# Путь к файлу конфигурации SSH
-SSH_CONFIG="/etc/ssh/sshd_config"
 
+# Запрос порта у пользователя
 while true; do
     read -p "$(echo -e "${YELLOW}Введите желаемый порт SSH (по умолчанию 2222): ${NC}")" NEW_PORT
-    NEW_PORT=${NEW_PORT:-2222}
+    NEW_PORT=${NEW_PORT:-2222}  # Используем 2222, если пользователь не ввел ничего
+
+    # Проверка, используется ли порт
     if ss -tuln | grep -q ":$NEW_PORT\b"; then
-        warning "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
+        warn "Порт $NEW_PORT уже используется. Пожалуйста, выберите другой порт."
     else
         success "Порт $NEW_PORT свободен."
         break
     fi
 done
+
+# Путь к файлу конфигурации SSH
+SSH_CONFIG="/etc/ssh/sshd_config"
 
 # Резервное копирование файла конфигурации SSH
 backup_file "$SSH_CONFIG"
@@ -133,25 +136,46 @@ backup_file "$SSH_CONFIG"
 # Изменение порта SSH
 sed -i "s/^#Port 22/Port $NEW_PORT/" $SSH_CONFIG
 sed -i "s/^Port 22/Port $NEW_PORT/" $SSH_CONFIG
+info "Порт изменен на $NEW_PORT"
 
 # Запрет авторизации для root
 sed -i "s/^#PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
 sed -i "s/^PermitRootLogin yes/PermitRootLogin no/" $SSH_CONFIG
+info "Авторизация для root запрещена"
 
 # Запрет авторизации по паролю
 sed -i "s/^#PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
 sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" $SSH_CONFIG
 sed -i "s/^#PermitEmptyPasswords no/PermitEmptyPasswords no/" $SSH_CONFIG
+info "Авторизация по паролю запрещена"
 
 # Разрешение авторизации по публичному ключу
 sed -i "s/^#PubkeyAuthentication yes/PubkeyAuthentication yes/" $SSH_CONFIG
+info "Разрешена авторизации по публичному ключу"
+
+# Принудительное использование только протокола SSHv2
+if ! grep -q "^Protocol 2" "$SSH_CONFIG"; then
+    echo "Protocol 2" >> "$SSH_CONFIG"
+    success "Протокол SSHv2 включен."
+else
+    info "Протокол SSHv2 уже активен."
+fi
+
+# Установка тайм-аутов для неактивных соединений
+if ! grep -q "^ClientAliveInterval" "$SSH_CONFIG"; then
+    echo "ClientAliveInterval 300" >> "$SSH_CONFIG"
+    echo "ClientAliveCountMax 0" >> "$SSH_CONFIG"
+    success "Тайм-ауты для неактивных SSH-соединений установлены."
+else
+    info "Тайм-ауты для SSH-соединений уже настроены."
+fi
 
 # Перезапуск SSH-сервиса для применения изменений
 info "Перезапускаем SSH-сервис..."
 if systemctl restart ssh; then
     success "SSH-сервис успешно перезапущен."
 else
-    error "Ошибка при перезапуске SSH-сервиса."
+    error "Ошибка при перезапуске SSH-сервиса. Проверьте конфигурацию."
     exit 1
 fi
 
@@ -161,9 +185,10 @@ read -p "$(echo -e "${YELLOW}Получилось ли подключиться?
 if [[ "$answer" == "y" ]]; then
     success "SSH-соединение успешно установлено."
 else
-    error "Ошибка подключения. Восстанавливаем конфигурацию SSH..."
+    warning "Ошибка подключения. Восстанавливаем конфигурацию SSH..."
     cp -f "$SSH_CONFIG.bak" "$SSH_CONFIG"
     systemctl restart ssh
+    error "Защита SSH-соединения не настроена."
     warning "Пожалуйста, проверьте правильность данных для подключения и ключей SSH и повторите попытку."
     exit 1
 fi
