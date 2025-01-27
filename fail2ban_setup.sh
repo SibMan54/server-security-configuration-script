@@ -47,19 +47,13 @@ FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
 backup_file "$FAIL2BAN_CONFIG"
 
 cat <<EOF > "$FAIL2BAN_CONFIG"
-[DEFAULT]
-bantime = 10m
-findtime = 10m
-maxretry = 5
-ignoreip = 127.0.0.1/8 ::1
-
 [sshd]
 enabled = true
-port = $NEW_PORT
+port    = ssh
 filter = sshd
 logpath = /var/log/auth.log
 maxretry = 3
-bantime = 1h
+bantime = 3600
 EOF
 
 if [[ $? -eq 0 ]]; then
