@@ -226,6 +226,16 @@ if [[ "$answer" == "y" ]]; then
     fi
 fi
 
+# Установка и настройка Fail2ban
+read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH и других сервисов? (y/n): ${NC}")" answer
+if [[ "$answer" == "y" ]]; then
+    if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
+        success "Fail2ban успешно установлен и настроен"
+    else
+        error "Ошибка: Fail2ban не был установлен. Проверьте логи или выполните настройку вручную."
+    fi
+fi
+
 # Установка 3X-UI
 if ! command -v x-ui &> /dev/null; then
     read -p "$(echo -e "${YELLOW}Вы хотите установить 3X-UI панель? (y/n): ${NC}")" answer
@@ -255,14 +265,24 @@ if [ "$ufw_status" == "Status: active" ]; then
     counter=$((counter + 1))
     echo -e "$counter. ${BLUE}Firewall активирован, порт $NEW_PORT добавляем в разрешенные.${NC}"
 fi
-CONF_BAK_FILE="/etc/apt/apt.conf.d/50unattended-upgrades.bak"
+CONF_FILE="/etc/apt/apt.conf.d/50unattended-upgrades"
 if systemctl is-active --quiet unattended-upgrades; then
-    if [[ -f "$CONF_BAK_FILE" ]]; then
+    if grep -q "Unattended-Upgrade::Automatic-Reboot "true";" "$CONF_FILE"; then
         counter=$((counter + 1))
         echo -e "$counter. ${BLUE}Автоматическая проверка и установка обновлений безопасности включена и настроена.${NC}"
     else
     counter=$((counter + 1))
     echo -e "$counter. ${YELLOW}Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены.${NC}"
+    fi
+fi
+FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
+if command -v fail2ban-client &>/dev/null; then
+    if grep -q "[sshd]*enabled = true" "$FAIL2BAN_CONFIG"; then
+        counter=$((counter + 1))
+        echo -e "$counter. ${BLUE}Fail2ban установлен и настроен для защиты от брутфорса.${NC}"
+    else
+        counter=$((counter + 1))
+        echo -e "$counter. ${BLUE}Fail2ban установлен, НО не настроен для защиты от брутфорса.${NC}"    fi
     fi
 fi
 if command -v x-ui &> /dev/null; then

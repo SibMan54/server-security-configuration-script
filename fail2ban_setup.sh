@@ -15,12 +15,17 @@ function info() {
 }
 
 # --- Установка Fail2ban ---
-info "Устанавливаем Fail2ban..."
-if apt-get install -y fail2ban; then
-    success "Fail2ban успешно установлен."
+# Проверка, установлен ли Fail2ban
+if ! command -v fail2ban-client &>/dev/null; then
+    info "Устанавливаем Fail2ban..."
+    if apt-get install -y fail2ban; then
+        success "Fail2ban успешно установлен."
+    else
+        error "Ошибка при установке Fail2ban."
+        exit 1
+    fi
 else
-    error "Ошибка при установке Fail2ban."
-    exit 1
+    info "Fail2ban уже установлен."
 fi
 
 # --- Настройка Fail2ban ---
