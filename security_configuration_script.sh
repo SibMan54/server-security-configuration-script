@@ -227,7 +227,7 @@ if [[ "$answer" == "y" ]]; then
 fi
 
 # Установка и настройка Fail2ban
-read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH и других сервисов? (y/n): ${NC}")" answer
+read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH? (y/n): ${NC}")" answer
 if [[ "$answer" == "y" ]]; then
     if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
         success "Fail2ban успешно установлен и настроен"
@@ -265,24 +265,22 @@ if [ "$ufw_status" == "Status: active" ]; then
     counter=$((counter + 1))
     echo -e "$counter. ${BLUE}Firewall активирован, порт $NEW_PORT добавляем в разрешенные.${NC}"
 fi
-CONF_FILE="/etc/apt/apt.conf.d/50unattended-upgrades"
 if systemctl is-active --quiet unattended-upgrades; then
-    if grep -q "Unattended-Upgrade::Automatic-Reboot "true";" "$CONF_FILE"; then
+    if grep -m 1 '^Unattended-Upgrade::Automatic-Reboot "true";' /etc/apt/apt.conf.d/50unattended-upgrades | grep -qv "^[[:space:]]*//"; then
         counter=$((counter + 1))
         echo -e "$counter. ${BLUE}Автоматическая проверка и установка обновлений безопасности включена и настроена.${NC}"
     else
-    counter=$((counter + 1))
-    echo -e "$counter. ${YELLOW}Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены.${NC}"
+        counter=$((counter + 1))
+        echo -e "$counter. ${YELLOW}Автоматическая проверка и установка обновлений включена, но изменения для безопастности обновлений не были внесены.${NC}"
     fi
 fi
-FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
 if command -v fail2ban-client &>/dev/null; then
-    if grep -q "[sshd]*enabled = true" "$FAIL2BAN_CONFIG"; then
+    if grep -Pzo "\[sshd\]\n\s*enabled\s*=\s*true" /etc/fail2ban/jail.local &>/dev/null; then
         counter=$((counter + 1))
-        echo -e "$counter. ${BLUE}Fail2ban установлен и настроен для защиты от брутфорса.${NC}"
+        echo -e "$counter. ${BLUE}Fail2ban установлен и настроен для защиты от брутфорса SSH.${NC}"
     else
         counter=$((counter + 1))
-        echo -e "$counter. ${BLUE}Fail2ban установлен, НО не настроен для защиты от брутфорса.${NC}"    fi
+        echo -e "$counter. ${YELLOW}Fail2ban установлен, НО не настроен для защиты от брутфорса SSH.${NC}"
     fi
 fi
 if command -v x-ui &> /dev/null; then
