@@ -14,6 +14,19 @@ function info() {
     echo -e "\e[34m[INFO]\e[0m $1"
 }
 
+# --- Функция для создания резервной копии файла ---
+backup_file() {
+    local file="$1"
+    local backup="$1.bak"
+
+    if [ ! -f "$backup" ]; then
+        info "Создаю резервную копию файла $file..."
+        cp "$file" "$backup"
+    else
+        success "Резервная копия файла $file уже существует."
+    fi
+}
+
 # --- Установка Fail2ban ---
 # Проверка, установлен ли Fail2ban
 if ! command -v fail2ban-client &>/dev/null; then
@@ -31,6 +44,7 @@ fi
 # --- Настройка Fail2ban ---
 info "Настраиваем Fail2ban..."
 FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
+backup_file "$FAIL2BAN_CONFIG"
 
 cat <<EOF > "$FAIL2BAN_CONFIG"
 [DEFAULT]
