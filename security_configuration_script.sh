@@ -75,35 +75,49 @@ else
 fi
 
 # Копирование публичного ключа SSH
-ROOT_KEY_PATH="/root/.ssh/authorized_keys"
-USER_KEY_PATH="/home/$username/.ssh/authorized_keys"
-USER_SSH_DIR=$(dirname "$USER_KEY_PATH")
+SSH_KEY="/root/.ssh/authorized_keys"
+USER_SSH_KEY="/home/$username/.ssh/authorized_keys"
+USER_KEY_PATH=$(dirname "$USER_SSH_KEY")
 
-if [[ ! -d "$USER_SSH_DIR" ]]; then
+# Проверяем существует ли папка .ssh в папке пользователя
+if [[ ! -d "$USER_KEY_PATH" ]]; then
     info "Создаем папку .ssh для пользователя $username..."
-    mkdir -p "$USER_SSH_DIR"
-    chmod 700 "$USER_SSH_DIR"
-    chown "$username:$username" "$USER_SSH_DIR"
+    mkdir -p "$USER_KEY_PATH"
+    chmod 700 "$USER_KEY_PATH"
+    chown "$username:$username" "$USER_KEY_PATH"
 fi
 
-if [[ ! -f "$ROOT_KEY_PATH" ]]; then
-    warning "Публичный SSH ключ не найден: $ROOT_KEY_PATH"
-    read -p "$(echo -e "${YELLOW}Вставьте свой публичный SSH ключ вручную: (Ctrl + X, затем Y и Enter для сохранения): ${NC}")"
-    nano "$USER_KEY_PATH"
-    chmod 600 "$USER_KEY_PATH"
-    chown "$username:$username" "$USER_KEY_PATH"
-    success "Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH"
+# Проверяем, существует ли SSH ключ в папке пользователя
+if [[ -f "$USER_SSH_KEY" && -s "$USER_SSH_KEY" && $(grep -q '^ssh' "$USER_SSH_KEY" && echo "found") ]]; then
+    success "SSH ключ уже существует в: $USER_SSH_KEY"
+    # Создаем бэкап файла ключа
+    backup_file "$USER_SSH_KEY"
 else
-    if [[ -f "$USER_KEY_PATH" ]]; then
-        backup_file "$USER_KEY_PATH"
-    fi
-    if cp -f "$ROOT_KEY_PATH" "$USER_KEY_PATH"; then
-        chmod 600 "$USER_KEY_PATH"
-        chown "$username:$username" "$USER_KEY_PATH"
-        success "Публичный SSH ключ успешно скопирован в: $USER_KEY_PATH"
+    # Проверяем, существует ли SSH ключ в папке root пользователя
+    if [[ -f "$SSH_KEY" && -s "$SSH_KEY" && $(grep -q '^ssh' "$SSH_KEY" && echo "found") ]]; then
+        # Файл authorized_keys существует и он не пустой, копируем его
+        if cp -f "$SSH_KEY" "$USER_SSH_KEY"; then
+            chmod 600 "$USER_SSH_KEY"
+            chown "$username:$username" "$USER_SSH_KEY"
+            success "Публичный SSH ключ успешно скопирован в: $USER_SSH_KEY"
+        else
+            error "Ошибка при копировании публичного SSH ключа."
+            exit 1
+        fi
     else
-        error "Ошибка при копировании публичного SSH ключа."
-        exit 1
+        # Файл authorized_keys не найден или пуст
+        warning "Публичный SSH ключ не найден в: $SSH_KEY"
+        read -p "$(echo -e "${YELLOW}Введите ваш публичный SSH-ключ: ${NC}")" PUB_KEY
+        if [[ -n "$PUB_KEY" ]]; then
+            # Создаем или заполняем файл authorized_keys
+            echo "$PUB_KEY" > "$USER_SSH_KEY"
+            chmod 600 "$USER_SSH_KEY"
+            chown "$username:$username" "$USER_SSH_KEY"
+            success "Ключ успешно добавлен в: $USER_SSH_KEY"
+        else
+            error "Ключ не был введен. Завершение."
+            exit 1
+        fi
     fi
 fi
 
@@ -257,7 +271,7 @@ fi
 echo ""
 echo "==========================================================="
 echo -e "1. ${BLUE}Создан новый пользователь $username.${NC}"
-echo -e "2. ${BLUE}Публичный SSH ключ успешно добавлен в: $USER_KEY_PATH.${NC}"
+echo -e "2. ${BLUE}Публичный SSH ключ успешно добавлен в: $USER_SSH_KEY.${NC}"
 echo -e "3. ${BLUE}Конфигурация SSH успешно изменена, порт изменен на $NEW_PORT. Используйте его при следующем подключении к серверу.${NC}"
 counter=3
 ufw_status=$(sudo ufw status | grep -o "Status: active")
