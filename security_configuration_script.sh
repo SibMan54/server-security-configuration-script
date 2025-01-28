@@ -173,17 +173,18 @@ configure_ssh "$SSH_CONFIG" "PasswordAuthentication" "no"
 configure_ssh "$SSH_CONFIG" "PermitEmptyPasswords" "no"
 # Разрешение авторизации по публичному ключу
 configure_ssh "$SSH_CONFIG" "PubkeyAuthentication" "yes"
-# Установка таймаута сеанса
-configure_ssh "$SSH_CONFIG" "ClientAliveInterval" "300"
-configure_ssh "$SSH_CONFIG" "ClientAliveCountMax" "2"
-# Ограничение попыток авторизации за одну сессию SSH
+# Ограничьте количество попыток входа
 configure_ssh "$SSH_CONFIG" "MaxAuthTries" "3"
-# Ограничение времени до завершения аутентификации пользователя
-configure_ssh "$SSH_CONFIG" "LoginGraceTime" "20"
-# Отключение перенаправления TCP-трафика
-# configure_ssh "$SSH_CONFIG" "AllowTcpForwarding" "no"
-# Отключение перенаправления X11, которое позволяет запускать графические приложения через SSH
-# configure_ssh "$SSH_CONFIG" "X11Forwarding" "no"
+# Время ожидания перед завершением сессии (в секундах)
+configure_ssh "$SSH_CONFIG" "LoginGraceTime" "30"
+# Отключите, если не используете проброс портов
+configure_ssh "$SSH_CONFIG" "AllowTcpForwarding" "no"
+# Отключите, если не нужен X11, которое позволяет запускать графические приложения через SSH
+configure_ssh "$SSH_CONFIG" "X11Forwarding" "no"
+# Установите интервал проверки активности клиента
+configure_ssh "$SSH_CONFIG" "ClientAliveInterval" "300"
+# Количество проверок активности перед завершением сессии
+configure_ssh "$SSH_CONFIG" "ClientAliveCountMax" "2"
 
 info "SSH конфигурация обновлена. Перезапускаем SSH-сервис..."
 if systemctl restart ssh; then
@@ -244,7 +245,7 @@ fi
 read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH? (y/n): ${NC}")" answer
 if [[ "$answer" == "y" ]]; then
     if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
-        success "Fail2ban успешно установлен и настроен"
+        success "Fail2ban успешно установлен и настроен."
     else
         error "Ошибка: Fail2ban не был установлен. Проверьте логи или выполните настройку вручную."
     fi

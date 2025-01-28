@@ -46,14 +46,21 @@ info "Настраиваем Fail2ban..."
 FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
 backup_file "$FAIL2BAN_CONFIG"
 
+SSH_PORT=$(grep -m1 "^Port " /etc/ssh/sshd_config | awk '{print $2}')  # Определяем порт SSH
+
 cat <<EOF > "$FAIL2BAN_CONFIG"
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+ignoreip = 127.0.0.1/8
+
 [sshd]
 enabled = true
-port    = ssh
-filter = sshd
+port = 22,2222,$SSH_PORT
 logpath = /var/log/auth.log
 maxretry = 3
-bantime = 3600
+bantime = 24h
 EOF
 
 if [[ $? -eq 0 ]]; then
