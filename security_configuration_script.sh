@@ -231,6 +231,30 @@ else
     ufw status numbered
 fi
 
+# Отключение ping (ICMP echo-request) по запросу пользователя
+BEFORE_RULES="/etc/ufw/before.rules"
+
+read -p "$(echo -e "${YELLOW}Отключить пингование сервера (ICMP echo-request)? (y/n): ${NC}")" icmp_answer
+
+if [[ "$icmp_answer" == "y" ]]; then
+    # Проверяем, есть ли ещё НЕ закомментированная строка echo-request
+    if grep -q "^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT" "$BEFORE_RULES"; then
+        # Резервная копия
+        cp "$BEFORE_RULES" "${BEFORE_RULES}.bak.$(date +%F_%T)"
+        success "Создана резервная копия before.rules"
+
+        # Комментируем echo-request с пробелом после #
+        sed -i 's|^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT|# -A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT|' "$BEFORE_RULES"
+
+        ufw reload
+        success " Пингование сервера отключено (ICMP echo-request закомментировано)."
+    else
+        success "Ping уже отключён или правило уже закомментировано."
+    fi
+else
+    info "Отключение ping пропущено."
+fi
+
 # Активация автоматических обновлений
 read -p "$(echo -e "${YELLOW}Вы хотите включить автоматическое обновление? (y/n): ${NC}")" answer
 if [[ "$answer" == "y" ]]; then
