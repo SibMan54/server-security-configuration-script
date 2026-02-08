@@ -177,7 +177,7 @@ configure_ssh "$SSH_CONFIG" "PasswordAuthentication" "no"
 configure_ssh "$SSH_CONFIG" "PermitEmptyPasswords" "no"
 # Разрешение авторизации по публичному ключу
 configure_ssh "$SSH_CONFIG" "PubkeyAuthentication" "yes"
-# Ограничьте количество попыток входа
+# Ограничение количества попыток входа
 configure_ssh "$SSH_CONFIG" "MaxAuthTries" "3"
 # Время ожидания перед завершением сессии (в секундах)
 configure_ssh "$SSH_CONFIG" "LoginGraceTime" "30"
