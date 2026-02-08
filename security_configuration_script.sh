@@ -33,17 +33,21 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Функция для создания резервной копии файла
+# Функция для создания резервной копии файла с меткой времени
 backup_file() {
     local file="$1"
-    local backup="$1.bak"
 
-    if [ ! -f "$backup" ]; then
-        info "Создаю резервную копию файла $file..."
-        cp "$file" "$backup"
-    else
-        success "Резервная копия файла $file уже существует."
+    if [ ! -f "$file" ]; then
+        error "Файл $file не найден, резервная копия не создана."
+        return 1
     fi
+
+    local timestamp
+    timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
+    local backup="${file}.bak.${timestamp}"
+
+    cp "$file" "$backup"
+    success "Создана резервная копия: $backup"
 }
 
 
@@ -237,13 +241,9 @@ BEFORE_RULES="/etc/ufw/before.rules"
 read -p "$(echo -e "${YELLOW}Отключить пингование сервера (ICMP echo-request)? (y/n): ${NC}")" icmp_answer
 
 if [[ "$icmp_answer" == "y" ]]; then
-    # Проверяем, есть ли ещё НЕ закомментированная строка echo-request
     if grep -q "^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT" "$BEFORE_RULES"; then
-        # Резервная копия
-        cp "$BEFORE_RULES" "${BEFORE_RULES}.bak.$(date +%F_%T)"
-        success "Создана резервная копия before.rules"
+        backup_file "$BEFORE_RULES"
 
-        # Комментируем echo-request с пробелом после #
         sed -i 's|^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT|# -A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT|' "$BEFORE_RULES"
 
         ufw reload
