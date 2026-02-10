@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- Функция для вывода сообщений ---
+# --- Функции для вывода сообщений ---
 function success() {
     echo -e "\e[32m[SUCCESS]\e[0m $1"
 }
@@ -14,17 +14,21 @@ function info() {
     echo -e "\e[34m[INFO]\e[0m $1"
 }
 
-# --- Функция для создания резервной копии файла ---
+# Функция для создания резервной копии файла с меткой времени
 backup_file() {
     local file="$1"
-    local backup="$1.bak"
 
-    if [ ! -f "$backup" ]; then
-        info "Создаю резервную копию файла $file..."
-        cp "$file" "$backup"
-    else
-        success "Резервная копия файла $file уже существует."
+    if [ ! -f "$file" ]; then
+        error "Файл $file не найден, резервная копия не создана."
+        return 1
     fi
+
+    local timestamp
+    timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
+    local backup="${file}.bak.${timestamp}"
+
+    cp "$file" "$backup"
+    success "Создана резервная копия: $backup"
 }
 
 # --- Проверяем наличие пакета unattended-upgrades ---
