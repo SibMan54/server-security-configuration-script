@@ -1,18 +1,21 @@
 #!/bin/bash
 
+##### TAG #####
+
+# Определение цветов
+GREEN="\e[32m"
+RED="\e[31m"
+YELLOW="\e[33m"
+NC="\e[0m"
+
 # --- Функции для вывода сообщений ---
-function success() {
-    echo -e "\e[32m[SUCCESS]\e[0m $1"
-}
-function error() {
-    echo -e "\e[31m[ERROR]\e[0m $1"
-}
-function warning() {
-    echo -e "\e[33m[WARNING]\e[0m $1"
-}
-function info() {
-    echo -e "\e[34m[INFO]\e[0m $1"
-}
+success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; }
+warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
+
+##### END TAG #####
+
 
 # Функция для создания резервной копии файла с меткой времени
 backup_file() {
@@ -46,18 +49,84 @@ else
 fi
 
 # --- Настройка Fail2ban ---
-info "Настраиваем Fail2ban..."
 FAIL2BAN_CONFIG="/etc/fail2ban/jail.local"
+
+SSH_PORT=$(grep -m1 "^Port " /etc/ssh/sshd_config | awk '{print $2}')
+ENABLE_EMAIL="false"
+FAIL2BAN_EMAIL=""
+
+read -p "$(echo -e "${YELLOW}Включить email-уведомления Fail2ban? (y/n): ${NC}")" email_answer
+if [[ "$email_answer" == "y" ]]; then
+
+    # Удаляем Postfix, если установлен
+    if dpkg-query -W -f='${Status}' postfix 2>/dev/null | grep -q "install ok installed"; then
+        info "Удаляем Postfix..."
+        DEBIAN_FRONTEND=noninteractive apt-get remove --purge -y postfix
+        DEBIAN_FRONTEND=noninteractive apt-get autoremove -y
+        success "Postfix удалён."
+    else
+        info "Postfix не установлен, пропускаем удаление."
+    fi
+
+    # Устанавливаем Sendmail, если не установлен
+    if ! dpkg-query -W -f='${Status}' sendmail 2>/dev/null | grep -q "install ok installed"; then
+        info "Устанавливаем Sendmail и mailutils..."
+        DEBIAN_FRONTEND=noninteractive apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y sendmail mailutils
+        success "Sendmail установлен."
+    else
+        info "Sendmail уже установлен, установка не требуется."
+    fi
+
+    # Включаем и перезапускаем sendmail daemon
+    info "Запускаем и включаем Sendmail..."
+    systemctl enable sendmail >/dev/null 2>&1
+    systemctl restart sendmail
+
+    # 🔎 Проверяем, что Sendmail слушает порт 25
+    if ss -lntp | grep -q ':25'; then
+        success "Sendmail запущен и слушает порт 25."
+    else
+        error "Sendmail не запущен или не слушает порт 25. Email-уведомления работать не будут."
+        exit 1
+    fi
+
+    # Запрашиваем email
+    read -p "Введите email для уведомлений: " FAIL2BAN_EMAIL
+    if [[ -n "$FAIL2BAN_EMAIL" ]]; then
+        ENABLE_EMAIL="true"
+        info "Email уведомления включены для: $FAIL2BAN_EMAIL"
+    else
+        warning "Email не указан, уведомления отключены."
+        ENABLE_EMAIL="false"
+    fi
+fi
+
 backup_file "$FAIL2BAN_CONFIG"
 
-SSH_PORT=$(grep -m1 "^Port " /etc/ssh/sshd_config | awk '{print $2}')  # Определяем порт SSH
-
+# --- Генерация jail.local ---
 cat <<EOF > "$FAIL2BAN_CONFIG"
 [DEFAULT]
 bantime = 1h
 findtime = 10m
 maxretry = 5
 ignoreip = 127.0.0.1/8
+EOF
+
+if [[ "$ENABLE_EMAIL" == "true" ]]; then
+cat <<EOF >> "$FAIL2BAN_CONFIG"
+destemail = $FAIL2BAN_EMAIL
+sender = fail2ban@$(hostname)
+mta = sendmail
+action = %(action_mwl)s
+EOF
+else
+cat <<EOF >> "$FAIL2BAN_CONFIG"
+action = %(action_)s
+EOF
+fi
+
+cat <<EOF >> "$FAIL2BAN_CONFIG"
 
 [sshd]
 enabled = true
@@ -67,27 +136,17 @@ maxretry = 3
 bantime = 24h
 EOF
 
-if [[ $? -eq 0 ]]; then
-    success "Конфигурация Fail2ban успешно создана."
-else
-    error "Ошибка при создании конфигурации Fail2ban."
-    exit 1
-fi
+success "Конфигурация Fail2ban создана."
 
 # --- Перезапуск Fail2ban ---
-info "Перезапускаем Fail2ban для применения изменений..."
-if systemctl restart fail2ban; then
-    success "Fail2ban успешно перезапущен."
-else
-    error "Не удалось перезапустить Fail2ban."
-    exit 1
-fi
+info "Перезапускаем Fail2ban..."
+systemctl restart fail2ban
+success "Fail2ban перезапущен."
 
-# --- Проверка статуса Fail2ban ---
+# --- Статус Fail2ban ---
 info "Проверяем статус Fail2ban..."
-if systemctl status fail2ban > /dev/null 2>&1; then
+if systemctl is-active --quiet fail2ban; then
     success "Fail2ban работает корректно."
 else
-    error "Fail2ban не запущен. Проверьте логи для диагностики."
-    exit 1
+    error "Fail2ban не запущен. Проверьте логи."
 fi
