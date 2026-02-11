@@ -285,7 +285,7 @@ fi
 if ! command -v x-ui &> /dev/null; then
     read -p "$(echo -e "${YELLOW}Вы хотите установить 3X-UI панель? (y/n): ${NC}")" answer
     if [[ "$answer" == "y" ]]; then
-        if bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/install-3x-ui-add-signed-ssl-cert/refs/heads/main/install_3x-ui_add_ssl_cert.sh); then
+        if bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); then
             success "3X-UI успешно установлен."
         else
             error "Ошибка установки 3X-UI."
