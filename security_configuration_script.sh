@@ -225,7 +225,7 @@ if [[ "$ufw_status" == *"inactive"* ]]; then
     read -p "$(echo -e "${YELLOW}Вы хотите активировать Firewall? (y/n): ${NC}")" answer
     if [[ "$answer" == "y" ]]; then
         # Активируем Firewall
-        echo "y" | ufw enable > /dev/null 2>&1
+        ufw --force enable
         success "Firewall активирован."
         ufw allow $NEW_PORT/tcp
         success "Порт $NEW_PORT добавлен в список разрешённых (или уже был добавлен)."
@@ -293,15 +293,111 @@ fi
 # -------------------------------
 # Установка 3X-UI
 # -------------------------------
+
+# Функция установки 3X-UI через оф. скрипт
+install_3xui_official() {
+    info "Установка 3X-UI через официальный скрипт..."
+
+    # Проверяем статус UFW
+    if ufw status | grep -q "Status: active"; then
+        FIREWALL_ACTIVE=true
+        info "Отключаем Firewall (ufw)..."
+        ufw disable
+    else
+        FIREWALL_ACTIVE=false
+        info "Firewall уже отключён."
+    fi
+
+    # Установка 3X-UI
+    if bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); then
+        success "3X-UI успешно установлен."
+    else
+        error "Ошибка установки 3X-UI."
+        [[ "$FIREWALL_ACTIVE" == true ]] && ufw --force enable
+        exit 1
+    fi
+
+    # Включаем Firewall обратно
+    if [[ "$FIREWALL_ACTIVE" == true ]]; then
+        info "Добавляем правила firewall..."
+        ufw allow 443/tcp
+        info "Включаем Firewall обратно..."
+        ufw --force enable
+    fi
+}
+
+# Функция установки 3X-UI-PRO
+install_3xui_extended() {
+    info "Выбрана расширенная установка 3x-UI."
+
+    if [[ ! -x "/root/3x-ui-extended-install.sh" ]]; then
+        error "Расширенный скрипт установки не найден или не исполняемый."
+        return 1
+    fi
+
+    bash <(wget -qO- https://github.com/mozaroc/x-ui-pro/raw/master/x-ui-pro.sh) -install yes -panel 1 -ONLY_CF_IP_ALLOW no
+
+    if [[ $? -eq 0 ]]; then
+        success "3x-UI-PRO успешно установлен."
+    else
+        error "Ошибка при установке 3x-UI-PRO."
+        return 1
+    fi
+}
+
+# Функция коректировки cron-задания acme.sh
+fix_acme_cron() {
+    local OPEN="ufw allow 80/tcp"
+    local CLOSE="ufw deny 80/tcp"
+
+    crontab -l 2>/dev/null | while IFS= read -r line; do
+
+        # не acme — просто печатаем
+        if ! echo "$line" | grep -q 'acme.sh --cron'; then
+            echo "$line"
+            continue
+        fi
+
+        # уже обёрнуто — НЕ трогаем
+        if echo "$line" | grep -q 'ufw allow 80/tcp.*acme.sh --cron.*ufw deny 80/tcp'; then
+            echo "$line"
+            continue
+        fi
+
+        # === здесь ТОЛЬКО чистая оригинальная строка ===
+        schedule=$(echo "$line" | awk '{print $1,$2,$3,$4,$5}')
+        command=$(echo "$line" | cut -d' ' -f6-)
+
+        echo "$schedule $OPEN && $command && $CLOSE"
+
+    done | crontab -
+
+    success "CRON-задание acme.sh обработано корректно."
+}
+
+# Если 3X-UI не установлен, выбираем вариант установки
 if ! command -v x-ui &> /dev/null; then
     read -p "$(echo -e "${YELLOW}Вы хотите установить 3X-UI панель? (y/n): ${NC}")" answer
+
     if [[ "$answer" == "y" ]]; then
-        if bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh); then
-            success "3X-UI успешно установлен."
-        else
-            error "Ошибка установки 3X-UI."
-            exit 1
-        fi
+        echo -e "${YELLOW}Выберите вариант установки 3X-UI:${NC}"
+        echo "1) Официальный скрипт"
+        echo "2) Расширенная версия (добавлены настроенные инбаунды и подписки, установлен Nginx с сайтом заглушкой)"
+        read -p "Введите 1 или 2: " UI_CHOICE
+
+        case "$UI_CHOICE" in
+            1)
+                install_3xui_official
+                fix_acme_cron
+                ;;
+            2)
+                install_3xui_extended
+                ;;
+            *)
+                error "Неверный выбор. Установка 3X-UI отменена."
+                exit 1
+                ;;
+        esac
     else
         info "Установка 3X-UI пропущена пользователем."
     fi
