@@ -50,8 +50,9 @@ backup_file() {
     success "Создана резервная копия: $backup"
 }
 
-
+# -------------------------------
 # Создаем нового пользователя
+# -------------------------------
 read -p "$(echo -e "${YELLOW}Введите имя нового пользователя: ${NC}")" username
 
 # Проверка, существует ли пользователь
@@ -78,7 +79,9 @@ else
     fi
 fi
 
+# -------------------------------
 # Копирование публичного ключа SSH
+# -------------------------------
 SSH_KEY="/root/.ssh/authorized_keys"
 USER_SSH_KEY="/home/$username/.ssh/authorized_keys"
 USER_KEY_PATH=$(dirname "$USER_SSH_KEY")
@@ -125,8 +128,9 @@ else
     fi
 fi
 
-
-### Настройка SSH ###
+# -------------------------------
+# Настройка защиты SSH
+# -------------------------------
 
 # Вычисляем номер текущего порта SSH
 SSH_PORT=$(grep -i "Port " /etc/ssh/sshd_config | awk '{print $2}')
@@ -213,8 +217,9 @@ else
     exit 1
 fi
 
-
+# -------------------------------
 # Активация Firewall
+# -------------------------------
 ufw_status=$(ufw status | grep -i "")
 if [[ "$ufw_status" == *"inactive"* ]]; then
     read -p "$(echo -e "${YELLOW}Вы хотите активировать Firewall? (y/n): ${NC}")" answer
@@ -237,7 +242,9 @@ else
     ufw status numbered
 fi
 
+# -------------------------------
 # Отключение ping (ICMP echo-request) по запросу пользователя
+# -------------------------------
 BEFORE_RULES="/etc/ufw/before.rules"
 
 read -p "$(echo -e "${YELLOW}Отключить пингование сервера (ICMP echo-request)? (y/n): ${NC}")" icmp_answer
@@ -257,7 +264,9 @@ else
     info "Отключение ping пропущено пользователем."
 fi
 
+# -------------------------------
 # Активация автоматических обновлений
+# -------------------------------
 read -p "$(echo -e "${YELLOW}Вы хотите включить автоматическое обновление? (y/n): ${NC}")" answer
 if [[ "$answer" == "y" ]]; then
     if bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh); then
@@ -281,7 +290,9 @@ else
     info "Установка и настройка Fail2ban пропущена пользователем."
 fi
 
+# -------------------------------
 # Установка 3X-UI
+# -------------------------------
 if ! command -v x-ui &> /dev/null; then
     read -p "$(echo -e "${YELLOW}Вы хотите установить 3X-UI панель? (y/n): ${NC}")" answer
     if [[ "$answer" == "y" ]]; then
@@ -299,6 +310,9 @@ else
 fi
 
 
+# -------------------------------
+# Финальное сообщение
+# -------------------------------
 echo ""
 echo "==========================================================="
 echo -e "1. ${BLUE}Создан новый пользователь $username.${NC}"
