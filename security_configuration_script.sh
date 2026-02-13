@@ -319,15 +319,15 @@ install_3xui_official() {
 
     # Включаем Firewall обратно
     if [[ "$FIREWALL_ACTIVE" == true ]]; then
-        # Попытка автоматически определить порт панели
         local PANEL_PORT
-        PANEL_PORT=$(grep -oP '"port"\s*:\s*\K[0-9]+' /etc/3x-ui/config.json 2>/dev/null)
-        if [[ -z "$PANEL_PORT" ]]; then
-            # warning "Не удалось автоматически определить порт панели."
-            read -p "Введите порт панели вручную: " PANEL_PORT
+        read -p "Введите порт панели вручную: " PANEL_PORT
+        if [[ -n "$PANEL_PORT" ]]; then
+            info "Добавляем порт $PANEL_PORT в firewall..."
+            ufw allow "$PANEL_PORT/tcp"
+        else
+            warning "Введен неверный порт, добавьте порт в firewall вручную."
         fi
-        info "Добавляем правила firewall..."
-        ufw allow "$PANEL_PORT/tcp"
+        info "Добавляем порт 433 в firewall..."
         ufw allow 443/tcp
         info "Включаем Firewall обратно..."
         ufw --force enable
