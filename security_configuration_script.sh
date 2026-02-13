@@ -327,17 +327,10 @@ install_3xui_official() {
 }
 
 # Функция установки 3X-UI-PRO
-install_3xui_extended() {
-    info "Выбрана расширенная установка 3x-UI."
+install_3xui_pro() {
+    info "Выбрана установка 3x-UI-PRO."
 
-    if [[ ! -x "/root/3x-ui-extended-install.sh" ]]; then
-        error "Расширенный скрипт установки не найден или не исполняемый."
-        return 1
-    fi
-
-    bash <(wget -qO- https://github.com/mozaroc/x-ui-pro/raw/master/x-ui-pro.sh) -install yes -panel 1 -ONLY_CF_IP_ALLOW no
-
-    if [[ $? -eq 0 ]]; then
+    if bash <(wget -qO- https://github.com/mozaroc/x-ui-pro/raw/master/x-ui-pro.sh) -install yes -panel 1 -ONLY_CF_IP_ALLOW no; then
         success "3x-UI-PRO успешно установлен."
     else
         error "Ошибка при установке 3x-UI-PRO."
@@ -347,8 +340,8 @@ install_3xui_extended() {
 
 # Функция коректировки cron-задания acme.sh
 fix_acme_cron() {
-    local OPEN="ufw allow 80/tcp"
-    local CLOSE="ufw deny 80/tcp"
+    local UFW_OPEN="ufw allow 80/tcp"
+    local UFW_CLOSE="ufw deny 80/tcp"
 
     crontab -l 2>/dev/null | while IFS= read -r line; do
 
@@ -368,11 +361,11 @@ fix_acme_cron() {
         schedule=$(echo "$line" | awk '{print $1,$2,$3,$4,$5}')
         command=$(echo "$line" | cut -d' ' -f6-)
 
-        echo "$schedule $OPEN && $command && $CLOSE"
+        echo "$schedule $UFW_OPEN && $command && $UFW_CLOSE"
 
     done | crontab -
 
-    success "CRON-задание acme.sh обработано корректно."
+    success "CRON-задание acme.sh изменена (добавлено открытие и закрытие 80-го порта)."
 }
 
 # Если 3X-UI не установлен, выбираем вариант установки
@@ -382,7 +375,7 @@ if ! command -v x-ui &> /dev/null; then
     if [[ "$answer" == "y" ]]; then
         echo -e "${YELLOW}Выберите вариант установки 3X-UI:${NC}"
         echo "1) Официальный скрипт"
-        echo "2) Расширенная версия (добавлены настроенные инбаунды и подписки, установлен Nginx с сайтом заглушкой)"
+        echo "2) Версия 3X-UI-PRO (добавлены настроенные инбаунды и подписки, установлен Nginx с сайтом заглушкой)"
         read -p "Введите 1 или 2: " UI_CHOICE
 
         case "$UI_CHOICE" in
@@ -391,7 +384,7 @@ if ! command -v x-ui &> /dev/null; then
                 fix_acme_cron
                 ;;
             2)
-                install_3xui_extended
+                install_3xui_pro
                 ;;
             *)
                 error "Неверный выбор. Установка 3X-UI отменена."
