@@ -319,7 +319,15 @@ install_3xui_official() {
 
     # Включаем Firewall обратно
     if [[ "$FIREWALL_ACTIVE" == true ]]; then
+        # Попытка автоматически определить порт панели
+        local PANEL_PORT
+        PANEL_PORT=$(grep -oP '"port"\s*:\s*\K[0-9]+' /etc/3x-ui/config.json 2>/dev/null)
+        if [[ -z "$PANEL_PORT" ]]; then
+            # warning "Не удалось автоматически определить порт панели."
+            read -p "Введите порт панели вручную: " PANEL_PORT
+        fi
         info "Добавляем правила firewall..."
+        ufw allow "$PANEL_PORT/tcp"
         ufw allow 443/tcp
         info "Включаем Firewall обратно..."
         ufw --force enable
@@ -340,8 +348,11 @@ install_3xui_pro() {
 
 # Функция коректировки cron-задания acme.sh
 fix_acme_cron() {
+    info "Исправляем cron-задачу acme.sh (временное открытие порта 80)..."
+
     local UFW_OPEN="ufw allow 80/tcp"
     local UFW_CLOSE="ufw deny 80/tcp"
+    local found_acme=false
 
     crontab -l 2>/dev/null | while IFS= read -r line; do
 
@@ -351,13 +362,15 @@ fix_acme_cron() {
             continue
         fi
 
+        found_acme=true
+
         # уже обёрнуто — НЕ трогаем
         if echo "$line" | grep -q 'ufw allow 80/tcp.*acme.sh --cron.*ufw deny 80/tcp'; then
             echo "$line"
             continue
         fi
 
-        # === здесь ТОЛЬКО чистая оригинальная строка ===
+        # === чистая оригинальная строка ===
         schedule=$(echo "$line" | awk '{print $1,$2,$3,$4,$5}')
         command=$(echo "$line" | cut -d' ' -f6-)
 
@@ -365,7 +378,11 @@ fix_acme_cron() {
 
     done | crontab -
 
-    success "CRON-задание acme.sh изменена (добавлено открытие и закрытие 80-го порта)."
+    if [[ "$found_acme" == false ]]; then
+        warning "Cron-задача acme.sh не найдена — возможно, она не была создана."
+    else
+        success "Cron-задача acme.sh успешно изменена."
+    fi
 }
 
 # Если 3X-UI не установлен, выбираем вариант установки
