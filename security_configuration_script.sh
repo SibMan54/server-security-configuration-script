@@ -379,7 +379,7 @@ fix_acme_cron() {
     done | crontab -
 
     if [[ "$found_acme" == false ]]; then
-        warning "Cron-задача acme.sh не найдена — возможно, она не была создана."
+        warning "Cron-задача acme.sh не найдена или не требует правок."
     else
         success "Cron-задача acme.sh успешно изменена."
     fi
