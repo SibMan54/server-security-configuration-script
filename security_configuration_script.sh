@@ -347,12 +347,11 @@ install_3xui_pro() {
 }
 
 # Функция коректировки cron-задания acme.sh
-fix_acme_cron() {
+fix_acme_cron_ufw() {
     info "Исправляем cron-задачу acme.sh (временное открытие порта 80)..."
 
-    local UFW_OPEN="ufw allow 80/tcp"
-    local UFW_CLOSE="ufw deny 80/tcp"
-    local found_acme=false
+    local OPEN="ufw allow 80/tcp"
+    local CLOSE="ufw deny 80/tcp"
 
     crontab -l 2>/dev/null | while IFS= read -r line; do
 
@@ -362,27 +361,21 @@ fix_acme_cron() {
             continue
         fi
 
-        found_acme=true
-
         # уже обёрнуто — НЕ трогаем
         if echo "$line" | grep -q 'ufw allow 80/tcp.*acme.sh --cron.*ufw deny 80/tcp'; then
             echo "$line"
             continue
         fi
 
-        # === чистая оригинальная строка ===
+        # === здесь ТОЛЬКО чистая оригинальная строка ===
         schedule=$(echo "$line" | awk '{print $1,$2,$3,$4,$5}')
         command=$(echo "$line" | cut -d' ' -f6-)
 
-        echo "$schedule $UFW_OPEN && $command && $UFW_CLOSE"
+        echo "$schedule $OPEN && $command && $CLOSE"
 
     done | crontab -
 
-    if [[ "$found_acme" == false ]]; then
-        warning "Cron-задача acme.sh не найдена или не требует правок."
-    else
-        success "Cron-задача acme.sh успешно изменена."
-    fi
+    success "CRON-задание acme.sh обработано корректно."
 }
 
 # Если 3X-UI не установлен, выбираем вариант установки
