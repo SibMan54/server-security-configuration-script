@@ -408,6 +408,27 @@ else
     success "3X-UI уже установлен."
 fi
 
+# -------------------------------
+# Установка SpeedTest
+# -------------------------------
+if command -v speedtest > /dev/null 2>&1; then
+    success_message "Speedtest CLI уже установлен."
+else
+    read -p "$(echo -e "${YELLOW}Установить SpeedTest ? (y/n): ${NC}")" answer
+    if [[ "$answer" == "y" ]]; then
+        # Установка Speedtest CLI
+        if bash <(curl -Ls https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh) && apt install -y speedtest-cli; then
+            rm -f /etc/apt/sources.list.d/ookla_speedtest-cli.list
+            success_message "Speedtest CLI успешно установлен."
+        else
+            error_message "Ошибка установки Speedtest CLI."
+            exit 1
+        fi
+    else
+        warning_message "Speedtest CLI НЕ установлен."
+    fi
+fi
+
 
 # -------------------------------
 # Финальное сообщение
