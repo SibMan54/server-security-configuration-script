@@ -246,11 +246,10 @@ fi
 # Отключение ping (ICMP echo-request) по запросу пользователя
 # -------------------------------
 BEFORE_RULES="/etc/ufw/before.rules"
+if grep -q "^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT" "$BEFORE_RULES"; then
+    read -p "$(echo -e "${YELLOW}Отключить пингование сервера (ICMP echo-request)? (y/n): ${NC}")" icmp_answer
+    if [[ "$icmp_answer" == "y" ]]; then
 
-read -p "$(echo -e "${YELLOW}Отключить пингование сервера (ICMP echo-request)? (y/n): ${NC}")" icmp_answer
-
-if [[ "$icmp_answer" == "y" ]]; then
-    if grep -q "^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT" "$BEFORE_RULES"; then
         backup_file "$BEFORE_RULES"
 
         sed -i 's|^-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT|# -A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT|' "$BEFORE_RULES"
@@ -258,36 +257,50 @@ if [[ "$icmp_answer" == "y" ]]; then
         ufw reload
         success " Пингование сервера отключено (ICMP echo-request закомментировано)."
     else
-        success "Ping уже отключён или правило уже закомментировано."
+        info "Отключение ping пропущено пользователем."
     fi
 else
-    info "Отключение ping пропущено пользователем."
+    success "Ping уже отключён или правило уже закомментировано."
 fi
 
 # -------------------------------
 # Активация автоматических обновлений
 # -------------------------------
-read -p "$(echo -e "${YELLOW}Вы хотите включить автоматическое обновление? (y/n): ${NC}")" answer
-if [[ "$answer" == "y" ]]; then
-    if bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh); then
-        success "Автоматические обновления успешно включены."
+if systemctl is-active --quiet unattended-upgrades; then
+    if grep -m 1 '^Unattended-Upgrade::Automatic-Reboot "true";' /etc/apt/apt.conf.d/50unattended-upgrades | grep -qv "^[[:space:]]*//"; then
+        success "Автообновления уже активированы"
     else
-        error "Ошибка при активации автоматических обновлений."
+        read -p "$(echo -e "${YELLOW}Вы хотите включить автоматическое обновление? (y/n): ${NC}")" answer
+        if [[ "$answer" == "y" ]]; then
+            if bash <(curl -Ls https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/auto_updates_enable.sh); then
+                success "Автоматические обновления успешно активированы."
+            else
+                error "Ошибка при активации автоматических обновлений."
+            fi
+        else
+            info "Активация автоматических обновлений пропущена пользователем."
+        fi
     fi
-else
-    info "Активация автоматических обновлений пропущена пользователем."
 fi
 
+# -------------------------------
 # Установка и настройка Fail2ban
-read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH? (y/n): ${NC}")" answer
-if [[ "$answer" == "y" ]]; then
-    if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
-        success "Fail2ban успешно установлен и настроен."
+# -------------------------------
+if command -v fail2ban-client &>/dev/null; then
+    if grep -Pzo "\[sshd\]\n\s*enabled\s*=\s*true" /etc/fail2ban/jail.local &>/dev/null; then
+        success "Fail2ban уже установлен"
     else
-        error "Ошибка: Fail2ban не был установлен. Проверьте логи или выполните настройку вручную."
+        read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH? (y/n): ${NC}")" answer
+        if [[ "$answer" == "y" ]]; then
+            if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
+                success "Fail2ban успешно установлен и настроен."
+            else
+                error "Ошибка: Fail2ban не был установлен. Проверьте логи или выполните настройку вручную."
+            fi
+        else
+            info "Установка и настройка Fail2ban пропущена пользователем."
+        fi
     fi
-else
-    info "Установка и настройка Fail2ban пропущена пользователем."
 fi
 
 # -------------------------------
@@ -412,20 +425,20 @@ fi
 # Установка SpeedTest
 # -------------------------------
 if command -v speedtest > /dev/null 2>&1; then
-    success_message "Speedtest CLI уже установлен."
+    success "Speedtest CLI уже установлен."
 else
     read -p "$(echo -e "${YELLOW}Установить SpeedTest ? (y/n): ${NC}")" answer
     if [[ "$answer" == "y" ]]; then
         # Установка Speedtest CLI
         if bash <(curl -Ls https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh) && apt install -y speedtest-cli; then
             rm -f /etc/apt/sources.list.d/ookla_speedtest-cli.list
-            success_message "Speedtest CLI успешно установлен."
+            success "Speedtest CLI успешно установлен."
         else
-            error_message "Ошибка установки Speedtest CLI."
+            error "Ошибка установки Speedtest CLI."
             exit 1
         fi
     else
-        warning_message "Speedtest CLI НЕ установлен."
+        warning "Speedtest CLI НЕ установлен."
     fi
 fi
 
