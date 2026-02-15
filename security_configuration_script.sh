@@ -287,19 +287,34 @@ fi
 # Установка и настройка Fail2ban
 # -------------------------------
 if command -v fail2ban-client &>/dev/null; then
+    # Fail2ban установлен
     if grep -Pzo "\[sshd\]\n\s*enabled\s*=\s*true" /etc/fail2ban/jail.local &>/dev/null; then
-        success "Fail2ban уже установлен"
+        success "Fail2ban установлен и защита SSH активна."
     else
-        read -p "$(echo -e "${YELLOW}Вы хотите настроить Fail2ban для защиты от брутфорса SSH? (y/n): ${NC}")" answer
+        info "Fail2ban установлен, но защита SSH не настроена."
+        read -p "$(echo -e "${YELLOW}Настроить Fail2ban для защиты SSH? (y/n): ${NC}")" answer
         if [[ "$answer" == "y" ]]; then
             if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
-                success "Fail2ban успешно установлен и настроен."
+                success "Fail2ban успешно настроен для защиты SSH."
             else
-                error "Ошибка: Fail2ban не был установлен. Проверьте логи или выполните настройку вручную."
+                error "Ошибка настройки Fail2ban. Проверьте логи."
             fi
         else
-            info "Установка и настройка Fail2ban пропущена пользователем."
+            info "Настройка Fail2ban пропущена пользователем."
         fi
+    fi
+else
+    # Fail2ban НЕ установлен
+    warning "Fail2ban не установлен."
+    read -p "$(echo -e "${YELLOW}Установить и настроить Fail2ban для защиты SSH? (y/n): ${NC}")" answer
+    if [[ "$answer" == "y" ]]; then
+        if bash <(curl -Ls "https://raw.githubusercontent.com/SibMan54/server-security-configuration-script/refs/heads/main/fail2ban_setup.sh"); then
+            success "Fail2ban успешно установлен и настроен."
+        else
+            error "Ошибка установки Fail2ban."
+        fi
+    else
+        info "Установка Fail2ban пропущена пользователем."
     fi
 fi
 
