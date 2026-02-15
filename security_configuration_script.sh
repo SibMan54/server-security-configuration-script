@@ -360,7 +360,7 @@ install_3xui_pro() {
 }
 
 # Функция коректировки cron-задания acme.sh
-fix_acme_cron_ufw() {
+fix_acme_cron() {
     info "Исправляем cron-задачу acme.sh (временное открытие порта 80)..."
 
     local OPEN="ufw allow 80/tcp"
