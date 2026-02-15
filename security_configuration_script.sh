@@ -472,6 +472,13 @@ if [ "$ufw_status" == "Status: active" ]; then
     counter=$((counter + 1))
     echo -e "$counter. ${BLUE}Firewall активирован, порт $NEW_PORT добавляем в разрешенные.${NC}"
 fi
+if grep -qE "^[[:space:]]*#[[:space:]]*-A ufw-before-input -p icmp --icmp-type echo-request -j ACCEPT" "/etc/ufw/before.rules"; then
+    counter=$((counter + 1))
+    echo -e "$counter. ${BLUE}Пингование сервера отключено.${NC}"
+else
+    counter=$((counter + 1))
+    echo -e "$counter. ${YELLOW}Пингование сервера НЕ отключено.${NC}"
+fi
 if systemctl is-active --quiet unattended-upgrades; then
     if grep -m 1 '^Unattended-Upgrade::Automatic-Reboot "true";' /etc/apt/apt.conf.d/50unattended-upgrades | grep -qv "^[[:space:]]*//"; then
         counter=$((counter + 1))
@@ -493,6 +500,9 @@ fi
 if command -v x-ui &> /dev/null; then
     counter=$((counter + 1))
     echo -e "$counter. ${BLUE}Панель 3X-UI установлена.${NC}"
+else
+    counter=$((counter + 1))
+    echo -e "$counter. ${YELLOW}Панель 3X-UI НЕ установлена.${NC}"
 fi
 echo -e "${GREEN}✅ Настройка завершена, сервер теперь в безопастности!${NC}"
 echo -e "${YELLOW}⚠️ Чтобы изменения вступили в силу, необходимо:${NC}"
