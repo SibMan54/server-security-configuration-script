@@ -172,36 +172,40 @@ audit_ssh() {
 }
 
 audit_ssh_keys() {
-    local sshd_output keyfile user home path expanded found_user_keys=0
+    local sshd_output key_paths path expanded user uid home file_count=0 key_count=0
     if ! command -v sshd >/dev/null 2>&1 || ! sshd_output=$(sshd -T 2>/dev/null); then
-        audit_add INFO "Authorized keys" "Skipped; sshd effective config unavailable"
+        audit_add INFO "Authorized keys" "Skipped; effective SSH config unavailable"
         return
     fi
-    local key_paths
     key_paths=$(awk '$1=="authorizedkeysfile" {$1=""; sub(/^ /,""); print}' <<< "$sshd_output" | tail -n1)
     [[ -z "$key_paths" ]] && key_paths=".ssh/authorized_keys"
-    # Expand common AuthorizedKeysFile tokens for local accounts, without reading key contents.
-    while IFS=: read -r user _ _ _ _ home _; do
+    # Enumerate accounts including root (UID 0). AuthorizedKeysFile paths are expanded
+    # according to sshd's common %h/%u/%U tokens. Key content is never displayed.
+    while IFS=: read -r user _ uid _ _ home _; do
         [[ -n "$home" && "$home" != "/" && -d "$home" ]] || continue
         for path in $key_paths; do
             expanded="$path"
             expanded=${expanded//%h/$home}
             expanded=${expanded//%u/$user}
-            expanded=${expanded//%U/$(id -u "$user" 2>/dev/null || echo "")}
+            expanded=${expanded//%U/$uid}
             [[ "$expanded" == /* ]] || expanded="$home/$expanded"
-            if [[ -f "$expanded" ]]; then
-                if [[ -s "$expanded" ]]; then
-                    local count
-                    count=$(grep -Ec '(^|[[:space:]])(ssh-(rsa|ed25519|dss)|ecdsa-sha2-|sk-ssh-|sk-ecdsa-)' "$expanded" 2>/dev/null || true)
-                    audit_add INFO "User keys: $user" "$expanded ($count key-like line(s); contents not displayed)"
-                    ((found_user_keys+=1))
-                else
-                    audit_add WARN "User keys: $user" "$expanded exists but is empty"
-                fi
+            [[ -f "$expanded" ]] || continue
+            if [[ -s "$expanded" ]]; then
+                local count
+                count=$(grep -Ec '(^|[[:space:]])(ssh-(rsa|ed25519|dss)|ecdsa-sha2-|sk-ssh-|sk-ecdsa-)' "$expanded" 2>/dev/null || true)
+                audit_add INFO "Authorized keys: $user" "$expanded ($count key-like line(s); contents not shown)"
+                ((file_count+=1))
+                ((key_count+=count))
+            else
+                audit_add WARN "Authorized keys: $user" "$expanded exists but is empty"
             fi
         done
     done < <(getent passwd)
-    ((found_user_keys>0)) && audit_add OK "Authorized keys files" "Found ${found_user_keys} populated file(s)" || audit_add WARN "Authorized keys files" "No populated authorized_keys files detected"
+    if (( file_count > 0 )); then
+        audit_add OK "Authorized keys files" "Found $file_count file(s); approximately $key_count key entries detected (root included)"
+    else
+        audit_add WARN "Authorized keys files" "No populated authorized_keys files detected (root included)"
+    fi
 }
 
 audit_ssh_host_keys() {
