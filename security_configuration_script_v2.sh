@@ -146,7 +146,7 @@ audit_ssh() {
     if ! command -v sshd >/dev/null 2>&1; then audit_add WARN "SSH configuration" "sshd binary unavailable"; return; fi
     if ! sshd_output=$(sshd -T 2>/dev/null); then audit_add FAIL "SSH configuration" "sshd -T failed; configuration needs investigation"; return; fi
     audit_add OK "SSH config validation" "sshd -T completed successfully"
-    ports=$(awk '$1=="port" {print $2}' <<< "$sshd_output" | sort -nu | paste -sd, -)
+    ports=$(awk '$1=="port" {print $2}' <<< "$sshd_output" | sort -nu | paste -sd " " -)
     audit_add INFO "Configured SSH port(s)" "${ports:-not reported}"
     root_login=$(awk '$1=="permitrootlogin" {print $2}' <<< "$sshd_output" | tail -n1)
     password_auth=$(awk '$1=="passwordauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
@@ -158,7 +158,7 @@ audit_ssh() {
         listen_info=$(ss -ltnH 2>/dev/null | awk '{print $4}' | paste -sd, -)
         audit_add INFO "TCP listening endpoints" "${listen_info:-No TCP listeners detected}"
         local p
-        for p in ${ports:-}; do
+        for p in $ports; do
             if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:)${p}$"; then
                 audit_add OK "Port ${p} listener" "TCP socket found"
             else
@@ -186,7 +186,7 @@ audit_ssh_keys() {
         for path in $key_paths; do
             expanded="$path"
             expanded=${expanded//%h/$home}
-            expanded=${expanded//%u/$(id -u "$user" 2>/dev/null || echo "")}
+            expanded=${expanded//%u/$user}
             expanded=${expanded//%U/$(id -u "$user" 2>/dev/null || echo "")}
             [[ "$expanded" == /* ]] || expanded="$home/$expanded"
             if [[ -f "$expanded" ]]; then
