@@ -136,7 +136,7 @@ service_name_ssh() {
 }
 
 audit_ssh() {
-    local unit sshd_output ports root_login password_auth pubkey_auth
+    local unit sshd_output ports root_login password_auth pubkey_auth listen_info
     if ! unit=$(service_name_ssh); then
         audit_add FAIL "SSH server" "OpenSSH server service unit not found"
         return
@@ -145,9 +145,9 @@ audit_ssh() {
     if systemctl is-enabled --quiet "$unit"; then audit_add OK "SSH boot startup" "Enabled"; else audit_add WARN "SSH boot startup" "Not enabled"; fi
     if ! command -v sshd >/dev/null 2>&1; then audit_add WARN "SSH configuration" "sshd binary unavailable"; return; fi
     if ! sshd_output=$(sshd -T 2>/dev/null); then audit_add FAIL "SSH configuration" "sshd -T failed; configuration needs investigation"; return; fi
-    audit_add OK "SSH syntax/effective config" "sshd -T completed successfully"
-    ports=$(awk '$1=="port" {print $2}' <<< "$sshd_output" | paste -sd, -)
-    audit_add INFO "Effective SSH port(s)" "${ports:-not reported}"
+    audit_add OK "SSH config validation" "sshd -T completed successfully"
+    ports=$(awk '$1=="port" {print $2}' <<< "$sshd_output" | sort -nu | paste -sd, -)
+    audit_add INFO "Configured SSH port(s)" "${ports:-not reported}"
     root_login=$(awk '$1=="permitrootlogin" {print $2}' <<< "$sshd_output" | tail -n1)
     password_auth=$(awk '$1=="passwordauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
     pubkey_auth=$(awk '$1=="pubkeyauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
@@ -155,10 +155,89 @@ audit_ssh() {
     [[ "$password_auth" == no ]] && audit_add OK "SSH password auth" "Disabled" || audit_add WARN "SSH password auth" "${password_auth:-unknown}"
     [[ "$pubkey_auth" == yes ]] && audit_add OK "SSH public-key auth" "Enabled" || audit_add WARN "SSH public-key auth" "${pubkey_auth:-unknown}"
     if command -v ss >/dev/null 2>&1; then
-        local listening
-        listening=$(ss -ltn 2>/dev/null | awk 'NR>1 {print $4}' | paste -sd, -)
-        audit_add INFO "TCP listen sockets" "${listening:-none detected}"
+        listen_info=$(ss -ltnH 2>/dev/null | awk '{print $4}' | paste -sd, -)
+        audit_add INFO "TCP listening endpoints" "${listen_info:-No TCP listeners detected}"
+        local p
+        for p in ${ports:-}; do
+            if ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:)${p}$"; then
+                audit_add OK "Port ${p} listener" "TCP socket found"
+            else
+                audit_add WARN "Port ${p} listener" "No matching TCP listener detected (socket activation or service state may affect this)"
+            fi
+        done
+    else
+        audit_add INFO "TCP listeners" "ss command not available"
     fi
+    audit_ssh_keys
+}
+
+audit_ssh_keys() {
+    local sshd_output keyfile user home path expanded found_user_keys=0
+    if ! command -v sshd >/dev/null 2>&1 || ! sshd_output=$(sshd -T 2>/dev/null); then
+        audit_add INFO "Authorized keys" "Skipped; sshd effective config unavailable"
+        return
+    fi
+    local key_paths
+    key_paths=$(awk '$1=="authorizedkeysfile" {$1=""; sub(/^ /,""); print}' <<< "$sshd_output" | tail -n1)
+    [[ -z "$key_paths" ]] && key_paths=".ssh/authorized_keys"
+    # Expand common AuthorizedKeysFile tokens for local accounts, without reading key contents.
+    while IFS=: read -r user _ _ _ _ home _; do
+        [[ -n "$home" && "$home" != "/" && -d "$home" ]] || continue
+        for path in $key_paths; do
+            expanded="$path"
+            expanded=${expanded//%h/$home}
+            expanded=${expanded//%u/$(id -u "$user" 2>/dev/null || echo "")}
+            expanded=${expanded//%U/$(id -u "$user" 2>/dev/null || echo "")}
+            [[ "$expanded" == /* ]] || expanded="$home/$expanded"
+            if [[ -f "$expanded" ]]; then
+                if [[ -s "$expanded" ]]; then
+                    local count
+                    count=$(grep -cE '^(ssh-|ecdsa-|sk-)' "$expanded" 2>/dev/null || true)
+                    audit_add INFO "User keys: $user" "$expanded ($count key-like line(s); contents not displayed)"
+                    ((found_user_keys+=1))
+                else
+                    audit_add WARN "User keys: $user" "$expanded exists but is empty"
+                fi
+            fi
+        done
+    done < <(getent passwd)
+    ((found_user_keys>0)) && audit_add OK "Authorized keys files" "Found ${found_user_keys} populated file(s)" || audit_add WARN "Authorized keys files" "No populated authorized_keys files detected"
+}
+
+audit_ssh_host_keys() {
+    local hostkey keyfile pubfile fingerprint found=0
+    if [[ ! -d /etc/ssh ]]; then audit_add WARN "SSH host keys" "/etc/ssh directory missing"; return; fi
+    shopt -s nullglob
+    for keyfile in /etc/ssh/ssh_host_*_key; do
+        [[ "$keyfile" == *.pub ]] && continue
+        pubfile="${keyfile}.pub"
+        if [[ -f "$keyfile" && -f "$pubfile" ]]; then
+            if fingerprint=$(ssh-keygen -lf "$pubfile" 2>/dev/null); then
+                audit_add OK "Host key: ${keyfile##*/}" "${fingerprint%% *}"
+                ((found+=1))
+            else
+                audit_add WARN "Host key: ${keyfile##*/}" "Public key exists but fingerprint could not be read"
+            fi
+            if [[ "$(stat -c '%a' "$keyfile" 2>/dev/null)" =~ ^[0-7]+$ ]] && (( 10#$(stat -c '%a' "$keyfile") > 600 )); then
+                audit_add WARN "Host key permissions" "${keyfile##*/}: mode should be restrictive (actual $(stat -c '%a' "$keyfile"))"
+            fi
+        elif [[ -f "$keyfile" ]]; then
+            audit_add WARN "Host key: ${keyfile##*/}" "Private key present; matching public key file missing"
+        fi
+    done
+    shopt -u nullglob
+    ((found>0)) && audit_add OK "SSH host keys" "${found} public fingerprints readable" || audit_add WARN "SSH host keys" "No usable host key pairs found"
+}
+
+ssh_audit_screen() {
+    show_header
+    printf "${CYAN}SSH SECURITY AUDIT (READ-ONLY)${NC}\\n\\n"
+    audit_reset
+    audit_ssh
+    audit_ssh_host_keys
+    audit_print
+    log_action "SSH-only audit complete: ok=$AUDIT_OK warn=$AUDIT_WARN fail=$AUDIT_FAIL info=$AUDIT_INFO"
+    pause_menu
 }
 
 audit_firewall() {
@@ -272,7 +351,7 @@ main_menu() {
         read -r -p 'Select an option: ' choice || exit 0
         case "$choice" in
             1) module_placeholder 'System updates' ;;
-            2) module_placeholder 'SSH' ;;
+            2) ssh_audit_screen ;;
             3) module_placeholder 'UFW Firewall' ;;
             4) module_placeholder 'Fail2Ban' ;;
             5) module_placeholder 'Sysctl' ;;
