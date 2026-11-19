@@ -244,6 +244,72 @@ ssh_audit_screen() {
     pause_menu
 }
 
+ssh_show_effective_config() {
+    show_header
+    printf "${CYAN}EFFECTIVE SSH CONFIGURATION${NC}\\n\\n"
+    if ! command -v sshd >/dev/null 2>&1; then
+        warning "sshd command not found."
+    elif ! sshd -T 2>/dev/null; then
+        error "Could not read effective sshd configuration. Review the config before proceeding."
+    else
+        local effective
+        effective=$(sshd -T 2>/dev/null) || effective=""
+        if [[ -n "$effective" ]]; then
+            printf "%s\\n" "$effective" | grep -E '^(port |permitrootlogin |passwordauthentication |pubkeyauthentication |maxauthtries |logingracetime |allowtcpforwarding |x11forwarding |clientaliveinterval |clientalivecountmax )' || true
+        fi
+    fi
+    pause_menu
+}
+
+ssh_keys_audit_screen() {
+    show_header
+    printf "${CYAN}SSH AUTHORIZED KEYS (READ-ONLY)${NC}\\n\\n"
+    audit_reset
+    audit_ssh_keys
+    audit_print
+    pause_menu
+}
+
+ssh_hostkeys_screen() {
+    show_header
+    printf "${CYAN}SSH SERVER HOST KEYS (READ-ONLY)${NC}\\n\\n"
+    audit_reset
+    audit_ssh_host_keys
+    audit_print
+    pause_menu
+}
+
+ssh_configuration_menu() {
+    local choice
+    while true; do
+        show_header
+        printf "${CYAN}SSH MANAGEMENT${NC}\\n\\n"
+        printf "1. Full SSH security audit (read-only)\\n"
+        printf "2. Show effective SSH settings\\n"
+        printf "3. Inspect user authorized_keys (root included)\\n"
+        printf "4. Inspect server Host Keys\\n"
+        printf "5. Configure SSH security profile (not yet available)\\n\\n"
+        separator
+        printf "0. Back\\n\\n"
+        read -r -p 'Select an option: ' choice || return
+        case "$choice" in
+            1) ssh_audit_screen ;;
+            2) ssh_show_effective_config ;;
+            3) ssh_keys_audit_screen ;;
+            4) ssh_hostkeys_screen ;;
+            5)
+                show_header
+                warning "Safe SSH configuration editor is under development."
+                info "No files changed. We will implement backup, preflight, sshd validation, and rollback before enabling edits."
+                log_action "SSH configuration editing requested but not yet enabled"
+                pause_menu
+                ;;
+            0) return ;;
+            *) warning "Invalid selection."; sleep 1 ;;
+        esac
+    done
+}
+
 audit_firewall() {
     if ! command -v ufw >/dev/null 2>&1; then audit_add WARN "UFW firewall" "Not installed"; return; fi
     local status
@@ -356,7 +422,7 @@ main_menu() {
         read -r -p 'Select an option: ' choice || exit 0
         case "$choice" in
             1) module_placeholder 'System updates' ;;
-            2) ssh_audit_screen ;;
+            2) ssh_configuration_menu ;;
             3) module_placeholder 'UFW Firewall' ;;
             4) module_placeholder 'Fail2Ban' ;;
             5) module_placeholder 'Sysctl' ;;
