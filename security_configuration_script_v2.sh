@@ -192,7 +192,7 @@ audit_ssh_keys() {
             if [[ -f "$expanded" ]]; then
                 if [[ -s "$expanded" ]]; then
                     local count
-                    count=$(grep -cE '^(ssh-|ecdsa-|sk-)' "$expanded" 2>/dev/null || true)
+                    count=$(grep -Ec '(^|[[:space:]])(ssh-(rsa|ed25519|dss)|ecdsa-sha2-|sk-ssh-|sk-ecdsa-)' "$expanded" 2>/dev/null || true)
                     audit_add INFO "User keys: $user" "$expanded ($count key-like line(s); contents not displayed)"
                     ((found_user_keys+=1))
                 else
