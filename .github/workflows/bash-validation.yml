@@ -1,0 +1,20 @@
+name: Bash validation
+
+on:
+  push:
+    branches:
+      - main
+      - dev-2.0
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax check
+        run: bash -n security_configuration_script_v2.sh
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: ShellCheck
+        run: shellcheck -x security_configuration_script_v2.sh
