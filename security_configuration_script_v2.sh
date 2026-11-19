@@ -93,74 +93,149 @@ show_header() {
 }
 
 # Audit result counters: audit is read-only; no remediation occurs here.
-AUDIT_OK=0; AUDIT_WARN=0; AUDIT_FAIL=0
-status_ok()   { success "$*"; ((AUDIT_OK+=1)); }
-status_warn()  { warning "$*"; ((AUDIT_WARN+=1)); }
-status_fail()  { error "$*"; ((AUDIT_FAIL+=1)); }
+# Audit framework: structured results, strictly read-only.
+AUDIT_OK=0; AUDIT_WARN=0; AUDIT_FAIL=0; AUDIT_INFO=0
+AUDIT_ROWS=()
+
+audit_reset() {
+    AUDIT_OK=0; AUDIT_WARN=0; AUDIT_FAIL=0; AUDIT_INFO=0
+    AUDIT_ROWS=()
+}
+audit_add() {
+    local level="$1" label="$2" details="$3"
+    case "$level" in
+        OK) ((AUDIT_OK+=1)) ;;
+        WARN) ((AUDIT_WARN+=1)) ;;
+        FAIL) ((AUDIT_FAIL+=1)) ;;
+        INFO) ((AUDIT_INFO+=1)) ;;
+        *) level="INFO"; ((AUDIT_INFO+=1)) ;;
+    esac
+    AUDIT_ROWS+=("$level|$label|$details")
+}
+audit_print() {
+    local row level label details
+    printf "\\n%-7s %-30s %s\\n" "STATUS" "CHECK" "DETAILS"
+    separator
+    for row in "${AUDIT_ROWS[@]}"; do
+        IFS='|' read -r level label details <<< "$row"
+        case "$level" in
+            OK) printf "${GREEN}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            WARN) printf "${YELLOW}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            FAIL) printf "${RED}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            *) printf "${BLUE}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+        esac
+    done
+    separator
+    printf "Summary: ${GREEN}%d OK${NC} | ${YELLOW}%d warnings${NC} | ${RED}%d errors${NC} | %d info\\n" "$AUDIT_OK" "$AUDIT_WARN" "$AUDIT_FAIL" "$AUDIT_INFO"
+}
 
 service_name_ssh() {
-    if systemctl list-unit-files ssh.service --no-legend 2>/dev/null | grep -q 'ssh.service'; then
-        printf 'ssh'
-    elif systemctl list-unit-files sshd.service --no-legend 2>/dev/null | grep -q 'sshd.service'; then
-        printf 'sshd'
-    else
-        printf ''
+    if systemctl cat ssh.service >/dev/null 2>&1; then printf 'ssh'; return 0; fi
+    if systemctl cat sshd.service >/dev/null 2>&1; then printf 'sshd'; return 0; fi
+    return 1
+}
+
+audit_ssh() {
+    local unit sshd_output ports root_login password_auth pubkey_auth
+    if ! unit=$(service_name_ssh); then
+        audit_add FAIL "SSH server" "OpenSSH server service unit not found"
+        return
     fi
+    if systemctl is-active --quiet "$unit"; then audit_add OK "SSH service" "Active ($unit)"; else audit_add WARN "SSH service" "Inactive ($unit)"; fi
+    if systemctl is-enabled --quiet "$unit"; then audit_add OK "SSH boot startup" "Enabled"; else audit_add WARN "SSH boot startup" "Not enabled"; fi
+    if ! command -v sshd >/dev/null 2>&1; then audit_add WARN "SSH configuration" "sshd binary unavailable"; return; fi
+    if ! sshd_output=$(sshd -T 2>/dev/null); then audit_add FAIL "SSH configuration" "sshd -T failed; configuration needs investigation"; return; fi
+    audit_add OK "SSH syntax/effective config" "sshd -T completed successfully"
+    ports=$(awk '$1=="port" {print $2}' <<< "$sshd_output" | paste -sd, -)
+    audit_add INFO "Effective SSH port(s)" "${ports:-not reported}"
+    root_login=$(awk '$1=="permitrootlogin" {print $2}' <<< "$sshd_output" | tail -n1)
+    password_auth=$(awk '$1=="passwordauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
+    pubkey_auth=$(awk '$1=="pubkeyauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
+    [[ "$root_login" == no ]] && audit_add OK "Root SSH login" "Disabled" || audit_add WARN "Root SSH login" "${root_login:-unknown}"
+    [[ "$password_auth" == no ]] && audit_add OK "SSH password auth" "Disabled" || audit_add WARN "SSH password auth" "${password_auth:-unknown}"
+    [[ "$pubkey_auth" == yes ]] && audit_add OK "SSH public-key auth" "Enabled" || audit_add WARN "SSH public-key auth" "${pubkey_auth:-unknown}"
+    if command -v ss >/dev/null 2>&1; then
+        local listening
+        listening=$(ss -ltn 2>/dev/null | awk 'NR>1 {print $4}' | paste -sd, -)
+        audit_add INFO "TCP listen sockets" "${listening:-none detected}"
+    fi
+}
+
+audit_firewall() {
+    if ! command -v ufw >/dev/null 2>&1; then audit_add WARN "UFW firewall" "Not installed"; return; fi
+    local status
+    status=$(ufw status 2>/dev/null | head -n1)
+    if [[ "$status" == "Status: active" ]]; then
+        audit_add OK "UFW firewall" "Active"
+        local rules
+        rules=$(ufw status 2>/dev/null | sed -n '2,8p' | paste -sd '; ' -)
+        audit_add INFO "Firewall rules (sample)" "${rules:-No rules shown}"
+    else
+        audit_add WARN "UFW firewall" "${status:-Status unavailable}"
+    fi
+}
+
+audit_fail2ban() {
+    if ! command -v fail2ban-client >/dev/null 2>&1; then audit_add WARN "Fail2Ban" "Not installed"; return; fi
+    if ! systemctl is-active --quiet fail2ban; then audit_add WARN "Fail2Ban service" "Installed but inactive"; return; fi
+    audit_add OK "Fail2Ban service" "Active"
+    local jails
+    if jails=$(fail2ban-client status 2>/dev/null); then
+        jails=$(sed -n 's/.*Jail list:[[:space:]]*//p' <<< "$jails" | tr -d ' ')
+        [[ -n "$jails" ]] && audit_add OK "Fail2Ban jails" "$jails" || audit_add WARN "Fail2Ban jails" "No jails listed"
+    else
+        audit_add WARN "Fail2Ban status" "Could not read jail status"
+    fi
+}
+
+audit_swap() {
+    local total
+    total=$(awk '/SwapTotal:/ {print $2}' /proc/meminfo)
+    if (( ${total:-0} > 0 )) && swapon --show --noheadings 2>/dev/null | grep -q .; then
+        audit_add OK "Swap" "Active; total configured: ${total} KiB"
+    else
+        audit_add WARN "Swap" "No active swap detected"
+    fi
+}
+
+audit_updates() {
+    if command -v apt-get >/dev/null 2>&1; then
+        if [[ -f /var/lib/apt/lists/lock ]]; then audit_add INFO "Package updates" "APT metadata present; update check not run (read-only audit)" 
+        else audit_add INFO "Package updates" "APT detected; audit does not refresh package lists"; fi
+    else
+        audit_add INFO "Package updates" "APT not detected; skipped"
+    fi
+    if dpkg-query -W -f='${Status}' unattended-upgrades 2>/dev/null | grep -q 'install ok installed'; then
+        audit_add OK "Automatic security updates" "unattended-upgrades installed"
+    else
+        audit_add WARN "Automatic security updates" "unattended-upgrades not installed"
+    fi
+}
+
+audit_sysctl() {
+    local key value
+    for key in net.ipv4.ip_forward net.ipv4.conf.all.accept_redirects net.ipv4.conf.all.send_redirects net.ipv4.conf.all.rp_filter; do
+        if value=$(sysctl -n "$key" 2>/dev/null); then
+            audit_add INFO "Sysctl: $key" "$value (value reported; suitability depends on use)"
+        else
+            audit_add WARN "Sysctl: $key" "Unable to read"
+        fi
+    done
 }
 
 audit_basic() {
     show_header
-    printf "${CYAN}READ-ONLY SYSTEM AUDIT${NC}\n\n"
-    AUDIT_OK=0; AUDIT_WARN=0; AUDIT_FAIL=0
-
-    if [[ "$OS_ID" == ubuntu ]]; then status_ok "OS: ${OS_NAME} ${OS_VERSION}"; else status_warn "OS is not Ubuntu: ${OS_NAME} ${OS_VERSION}"; fi
-
-    local ssh_unit
-    ssh_unit=$(service_name_ssh)
-    if [[ -z "$ssh_unit" ]]; then
-        status_fail "OpenSSH server unit was not found."
-    else
-        if systemctl is-active --quiet "$ssh_unit"; then status_ok "SSH service ($ssh_unit): active"; else status_warn "SSH service ($ssh_unit): inactive"; fi
-        if systemctl is-enabled --quiet "$ssh_unit"; then status_ok "SSH service enabled at boot"; else status_warn "SSH service not enabled at boot"; fi
-    fi
-
-    if command -v sshd >/dev/null 2>&1; then
-        local sshd_output sshd_port
-        if sshd_output=$(sshd -T 2>/dev/null); then
-            status_ok "sshd effective configuration parses successfully"
-            sshd_port=$(awk '$1=="port" {print $2}' <<< "$sshd_output" | paste -sd, -)
-            [[ -n "$sshd_port" ]] && info "Effective SSH port(s): ${sshd_port}"
-            local root_login password_auth pubkey_auth
-            root_login=$(awk '$1=="permitrootlogin" {print $2}' <<< "$sshd_output" | tail -n1)
-            password_auth=$(awk '$1=="passwordauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
-            pubkey_auth=$(awk '$1=="pubkeyauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
-            [[ "$root_login" == no ]] && status_ok "PermitRootLogin: no" || status_warn "PermitRootLogin: ${root_login:-unknown}"
-            [[ "$password_auth" == no ]] && status_ok "PasswordAuthentication: no" || status_warn "PasswordAuthentication: ${password_auth:-unknown}"
-            [[ "$pubkey_auth" == yes ]] && status_ok "PubkeyAuthentication: yes" || status_warn "PubkeyAuthentication: ${pubkey_auth:-unknown}"
-        else
-            status_fail "sshd -T failed; effective SSH config could not be checked."
-        fi
-    else
-        status_warn "sshd command unavailable; SSH config details skipped."
-    fi
-
-    if command -v ufw >/dev/null 2>&1; then
-        if ufw status 2>/dev/null | grep -q '^Status: active'; then status_ok "UFW is active"; else status_warn "UFW is installed but inactive"; fi
-    else
-        status_warn "UFW is not installed"
-    fi
-
-    if command -v fail2ban-client >/dev/null 2>&1; then
-        if systemctl is-active --quiet fail2ban; then status_ok "Fail2Ban service is active"; else status_warn "Fail2Ban installed but inactive"; fi
-    else
-        status_warn "Fail2Ban is not installed"
-    fi
-
-    if swapon --show --noheadings 2>/dev/null | grep -q .; then status_ok "Swap is active"; else status_warn "Swap is not active"; fi
-
-    separator
-    printf "Audit summary: ${GREEN}%d OK${NC} | ${YELLOW}%d warnings${NC} | ${RED}%d errors${NC}\n" "$AUDIT_OK" "$AUDIT_WARN" "$AUDIT_FAIL"
-    log_action "Basic audit completed: ok=$AUDIT_OK warnings=$AUDIT_WARN fail=$AUDIT_FAIL"
+    printf "${CYAN}READ-ONLY SYSTEM AUDIT${NC}\\n\\n"
+    audit_reset
+    audit_add INFO "OS" "${OS_NAME} ${OS_VERSION} (${OS_ID})"
+    audit_ssh
+    audit_firewall
+    audit_fail2ban
+    audit_swap
+    audit_updates
+    audit_sysctl
+    audit_print
+    log_action "Audit completed: ok=$AUDIT_OK warn=$AUDIT_WARN fail=$AUDIT_FAIL info=$AUDIT_INFO"
     pause_menu
 }
 
