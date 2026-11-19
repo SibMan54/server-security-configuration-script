@@ -213,7 +213,7 @@ audit_ssh_host_keys() {
         pubfile="${keyfile}.pub"
         if [[ -f "$keyfile" && -f "$pubfile" ]]; then
             if fingerprint=$(ssh-keygen -lf "$pubfile" 2>/dev/null); then
-                audit_add OK "Host key: ${keyfile##*/}" "${fingerprint%% *}"
+                audit_add OK "Host key: ${keyfile##*/}" "$(awk '{print $2}' <<< "$fingerprint")"
                 ((found+=1))
             else
                 audit_add WARN "Host key: ${keyfile##*/}" "Public key exists but fingerprint could not be read"
@@ -308,6 +308,7 @@ audit_basic() {
     audit_reset
     audit_add INFO "OS" "${OS_NAME} ${OS_VERSION} (${OS_ID})"
     audit_ssh
+    audit_ssh_host_keys
     audit_firewall
     audit_fail2ban
     audit_swap
