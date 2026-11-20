@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT="${SCRIPT_DIR}/../../security_configuration_script_v2.sh"
+SCRIPT="${SCRIPT_DIR}/../security_configuration_script_v2.sh"
 source "$SCRIPT"
 
 TEST_ROOT=$(mktemp -d)
