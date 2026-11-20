@@ -369,7 +369,7 @@ ssh_backup_configs() {
 
 ssh_editor_safe_mode() {
     show_header
-    printf "${CYAN}SSH EDITOR PREFLIGHT (READ-ONLY)${NC}\n\n"
+    printf "${CYAN}SSH EDITOR PREFLIGHT (READ-ONLY)${NC}\\n\\n"
     local config="/etc/ssh/sshd_config"
     if [[ ! -f "$config" ]]; then error "Missing $config"; pause_menu; return; fi
     if ! sshd -t 2>/dev/null; then
@@ -383,117 +383,52 @@ ssh_editor_safe_mode() {
     elif systemctl is-active --quiet ssh.socket 2>/dev/null; then
         warning "Socket activation is active. Editor refuses to proceed."
     else
-        success "Configuration is eligible for the limited editor (simple global config only)."
+        success "Config appears eligible for a limited editor (still not enabled for writes)."
     fi
     info "No changes made."
     pause_menu
 }
 
-ssh_set_directive_atomic() {
-    local config="$1" key="$2" value="$3" temp matches
-    temp=$(mktemp "${config}.tmp.XXXXXX") || return 1
-    matches=$(grep -Ec "^[[:space:]]*${key}[[:space:]]+" "$config" || true)
-    if (( matches > 1 )); then
-        rm -f "$temp"
-        error "Multiple active $key directives found; refusing to choose."
-        return 1
-    fi
-    awk -v key="$key" -v val="$value" '
-        BEGIN { done=0 }
-        /^[[:space:]]*#/ { print; next }
-        {
-            if ($1 == key && !done) { print key " " val; done=1; next }
-            print
-        }
-        END { if (!done) print key " " val }
-    ' "$config" > "$temp" || { rm -f "$temp"; return 1; }
-    chmod --reference="$config" "$temp" 2>/dev/null || chmod 600 "$temp"
-    chown --reference="$config" "$temp" 2>/dev/null || true
-    mv -f "$temp" "$config"
-}
-
-ssh_apply_basic_profile() {
+ssh_hardening_profile_preview() {
     show_header
-    printf "${CYAN}INTERACTIVE SSH HARDENING${NC}\n\n"
-    local config="/etc/ssh/sshd_config" backup_dir backup unit effective port
-    local root_value pass_value key_value tries grace choice
-    if [[ ! -f "$config" ]] || ! command -v sshd >/dev/null 2>&1; then error "sshd_config or sshd missing."; pause_menu; return; fi
-    if ! sshd -t 2>/dev/null; then error "Current config fails validation. No changes made."; pause_menu; return; fi
-    if grep -Eq '^[[:space:]]*(Include|Match)[[:space:]]+' "$config" || { [[ -d /etc/ssh/sshd_config.d ]] && compgen -G '/etc/ssh/sshd_config.d/*.conf' >/dev/null; }; then
-        warning "Include/Match/drop-in configuration detected; this initial editor will not modify it."
-        pause_menu; return
-    fi
-    if systemctl is-active --quiet ssh.socket 2>/dev/null; then warning "ssh.socket activation detected; refusing to edit."; pause_menu; return; fi
-    if ! unit=$(service_name_ssh) || ! systemctl is-active --quiet "$unit"; then error "SSH service is not active; refusing to apply."; pause_menu; return; fi
-    effective=$(sshd -T 2>/dev/null) || { error "Unable to read effective settings."; pause_menu; return; }
-    port=$(awk '$1=="port"{print $2}' <<< "$effective" | sort -nu | paste -sd, -)
-    printf "Current SSH port(s): %s\n" "${port:-unknown}"
-    info "Port, forwarding, and service/socket settings will not be changed."
-    root_value=$(awk '$1=="permitrootlogin"{print $2}' <<< "$effective" | tail -n1)
-    pass_value=$(awk '$1=="passwordauthentication"{print $2}' <<< "$effective" | tail -n1)
-    key_value=$(awk '$1=="pubkeyauthentication"{print $2}' <<< "$effective" | tail -n1)
-    tries=$(awk '$1=="maxauthtries"{print $2}' <<< "$effective" | tail -n1)
-    grace=$(awk '$1=="logingracetime"{print $2}' <<< "$effective" | tail -n1)
-    printf "Current values: PermitRootLogin=%s, PasswordAuthentication=%s, PubkeyAuthentication=%s, MaxAuthTries=%s, LoginGraceTime=%s\n" "$root_value" "$pass_value" "$key_value" "$tries" "$grace
-    "
-    confirm "Start configuring SSH hardening?" || { pause_menu; return; }
-    printf "\nPermitRootLogin:\n 1) no (recommended)\n 2) prohibit-password\n 3) yes\n"
-    read -r -p "Choice [1]: " choice || { pause_menu; return; }
-    case "${choice:-1}" in 1) root_value=no ;; 2) root_value=prohibit-password ;; 3) root_value=yes ;; *) warning "Invalid choice."; pause_menu; return ;; esac
-    printf "\nPasswordAuthentication:\n 1) no\n 2) yes\n"
-    read -r -p "Choice [1]: " choice || { pause_menu; return; }
-    case "${choice:-1}" in 1) pass_value=no ;; 2) pass_value=yes ;; *) warning "Invalid choice."; pause_menu; return ;; esac
-    printf "\nPubkeyAuthentication:\n 1) yes\n 2) no\n"
-    read -r -p "Choice [1]: " choice || { pause_menu; return; }
-    case "${choice:-1}" in 1) key_value=yes ;; 2) key_value=no ;; *) warning "Invalid choice."; pause_menu; return ;; esac
-    read -r -p "MaxAuthTries (default 3): " tries || { pause_menu; return; }
-    tries=${tries:-3}
-    [[ "$tries" =~ ^[1-9][0-9]?$ ]] || { warning "MaxAuthTries must be 1-99."; pause_menu; return; }
-    read -r -p "LoginGraceTime seconds (default 30): " grace || { pause_menu; return; }
-    grace=${grace:-30}
-    [[ "$grace" =~ ^[0-9]+$ ]] || { warning "LoginGraceTime must be a non-negative integer."; pause_menu; return; }
-    if [[ "$pass_value" == no || "$root_value" == no ]]; then
-        audit_reset
-        audit_ssh_keys
-        if (( AUDIT_WARN > 0 )); then
-            warning "Authorized-key files audit raised warnings."
-            confirm "Proceed only if you personally tested key-based login from another session?" || { pause_menu; return; }
-        else
-            confirm "Confirm key-based login has been tested from a separate session?" || { pause_menu; return; }
-        fi
-    fi
-    printf "\nPlanned configuration:\n PermitRootLogin %s\n PasswordAuthentication %s\n PubkeyAuthentication %s\n MaxAuthTries %s\n LoginGraceTime %s\n\n" "$root_value" "$pass_value" "$key_value" "$tries" "$grace"
-    warning "Do not close your current SSH session. Verify a second connection before disconnecting."
-    confirm "Apply these settings?" || { pause_menu; return; }
-    backup_dir="$SSH_BACKUP_DIR"
-    install -d -m 700 "$backup_dir" || { error "Cannot create backup directory."; pause_menu; return; }
-    backup="$backup_dir/sshd_config-before-$(date '+%Y%m%d-%H%M%S').bak"
-    cp -p "$config" "$backup" || { error "Backup failed; no changes applied."; pause_menu; return; }
-    chmod 600 "$backup"
-    if ! ssh_set_directive_atomic "$config" PermitRootLogin "$root_value" ||
-       ! ssh_set_directive_atomic "$config" PasswordAuthentication "$pass_value" ||
-       ! ssh_set_directive_atomic "$config" PubkeyAuthentication "$key_value" ||
-       ! ssh_set_directive_atomic "$config" MaxAuthTries "$tries" ||
-       ! ssh_set_directive_atomic "$config" LoginGraceTime "$grace"; then
-        cp -p "$backup" "$config"
-        error "Edit failed; original file restored."
+    printf "${CYAN}SSH HARDENING PROFILE — PREVIEW ONLY${NC}\\n\\n"
+    local config="/etc/ssh/sshd_config" effective root_value pass_value pub_value tries grace choice
+    if [[ ! -f "$config" ]] || ! command -v sshd >/dev/null 2>&1; then
+        error "sshd_config or sshd is missing."
         pause_menu; return
     fi
     if ! sshd -t 2>/dev/null; then
-        cp -p "$backup" "$config"
-        error "New configuration invalid; restored backup."
+        error "Current config is invalid. No changes will be made."
         pause_menu; return
     fi
-    if systemctl reload "$unit"; then
-        success "SSH configuration applied and service reloaded."
-        log_action "SSH settings applied with backup=$backup"
-    else
-        cp -p "$backup" "$config"
-        sshd -t 2>/dev/null && systemctl reload "$unit" || true
-        error "Reload failed; configuration restored and reload attempted."
+    if grep -Eq '^[[:space:]]*(Include|Match)[[:space:]]+' "$config" || { [[ -d /etc/ssh/sshd_config.d ]] && compgen -G '/etc/ssh/sshd_config.d/*.conf' >/dev/null; }; then
+        warning "Complex Include/Match/drop-in config detected. Preview only; editor will not write."
     fi
+    effective=$(sshd -T 2>/dev/null) || { error "Unable to obtain effective SSH config."; pause_menu; return; }
+    root_value=$(awk '$1=="permitrootlogin"{print $2}' <<< "$effective" | tail -n1)
+    pass_value=$(awk '$1=="passwordauthentication"{print $2}' <<< "$effective" | tail -n1)
+    pub_value=$(awk '$1=="pubkeyauthentication"{print $2}' <<< "$effective" | tail -n1)
+    tries=$(awk '$1=="maxauthtries"{print $2}' <<< "$effective" | tail -n1)
+    grace=$(awk '$1=="logingracetime"{print $2}' <<< "$effective" | tail -n1)
+    printf "Current effective settings:\\n PermitRootLogin: %s\\n PasswordAuthentication: %s\\n PubkeyAuthentication: %s\\n MaxAuthTries: %s\\n LoginGraceTime: %s\\n\\n" "$root_value" "$pass_value" "$pub_value" "$tries" "$grace
+    "
+    printf "Choose a preview profile (nothing will be written):\\n"
+    printf "1. Recommended: RootLogin no, PasswordAuthentication no, PubkeyAuthentication yes, MaxAuthTries 3, LoginGraceTime 30\\n"
+    printf "2. Conservative: RootLogin prohibit-password, PasswordAuthentication yes, PubkeyAuthentication yes, MaxAuthTries 3, LoginGraceTime 30\\n"
+    printf "0. Cancel\\n"
+    read -r -p "Choice: " choice || { pause_menu; return; }
+    case "$choice" in
+        1) root_value=no; pass_value=no; pub_value=yes; tries=3; grace=30 ;;
+        2) root_value=prohibit-password; pass_value=yes; pub_value=yes; tries=3; grace=30 ;;
+        0) return ;;
+        *) warning "Invalid choice."; pause_menu; return ;;
+    esac
+    printf "\\nProposed values (preview):\\n PermitRootLogin %s\\n PasswordAuthentication %s\\n PubkeyAuthentication %s\\n MaxAuthTries %s\\n LoginGraceTime %s\\n\\n" "$root_value" "$pass_value" "$pub_value" "$tries" "$grace"
+    warning "Preview only: no file edits, service reload, or firewall changes were made."
+    log_action "SSH hardening profile preview selected: $choice (no modifications)"
     pause_menu
 }
+
 
 ssh_configuration_menu() {
     local choice
@@ -516,7 +451,7 @@ ssh_configuration_menu() {
             3) ssh_keys_audit_screen ;;
             4) ssh_hostkeys_screen ;;
             5) ssh_editor_safe_mode ;;
-            6) ssh_apply_basic_profile ;;
+            6) ssh_hardening_profile_preview ;;
             7) ssh_backup_configs ;;
             0) return ;;
             *) warning "Invalid selection."; sleep 1 ;;
