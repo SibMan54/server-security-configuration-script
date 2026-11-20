@@ -112,6 +112,10 @@ audit_add() {
     esac
     AUDIT_ROWS+=("$level|$label|$details")
 }
+status_ok()   { audit_add OK "$1" "$2"; }
+status_warn()  { audit_add WARN "$1" "$2"; }
+status_fail()  { audit_add FAIL "$1" "$2"; }
+status_info()  { audit_add INFO "$1" "$2"; }
 audit_print() {
     local row level label details
     printf "\\n%-7s %-30s %s\\n" "STATUS" "CHECK" "DETAILS"
@@ -279,6 +283,87 @@ ssh_hostkeys_screen() {
     pause_menu
 }
 
+SSH_BACKUP_DIR="/var/backups/server-security-script/ssh"
+
+ssh_preflight_screen() {
+    show_header
+    printf "${CYAN}SSH CONFIGURATION PREFLIGHT (READ-ONLY) ${NC}\\n\\n"
+    local sshd_bin unit port_output socket_state ufw_state config_main
+    config_main="/etc/ssh/sshd_config"
+    sshd_bin=$(command -v sshd || true)
+    if [[ -z "$sshd_bin" ]]; then
+        status_warn "OpenSSH server binary" "sshd is not installed or not in PATH"
+    else
+        status_ok "OpenSSH server binary" "$sshd_bin"
+        if sshd -t 2>/dev/null; then status_ok "SSH config syntax" "sshd -t passed"; else status_fail "SSH config syntax" "sshd -t failed; do not modify config until fixed"; fi
+    fi
+    if unit=$(service_name_ssh); then
+        if systemctl is-active --quiet "$unit"; then status_ok "SSH service" "$unit is active"; else status_warn "SSH service" "$unit is not active"; fi
+    else
+        status_warn "SSH service unit" "Could not find ssh/sshd unit"
+    fi
+    if command -v sshd >/dev/null 2>&1 && port_output=$(sshd -T 2>/dev/null); then
+        port_output=$(awk '$1=="port" {print $2}' <<< "$port_output" | sort -nu | paste -sd, -)
+        status_info "Effective SSH ports" "${port_output:-not determined}"
+    fi
+    if systemctl is-active --quiet ssh.socket 2>/dev/null; then
+        status_info "Socket activation" "ssh.socket is active; socket unit may control listening port"
+    elif systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
+        status_info "Socket activation" "ssh.socket is enabled"
+    else
+        status_info "Socket activation" "No active/enabled ssh.socket detected"
+    fi
+    if command -v ss >/dev/null 2>&1; then
+        local listeners
+        listeners=$(ss -ltnH 2>/dev/null | awk '{print $4}' | paste -sd, -)
+        status_info "Listening TCP endpoints" "${listeners:-none found}"
+    fi
+    if command -v ufw >/dev/null 2>&1; then
+        ufw_state=$(ufw status 2>/dev/null | head -n1 || true)
+        status_info "UFW status" "${ufw_state:-unknown}"
+    else
+        status_info "UFW status" "UFW not installed"
+    fi
+    if [[ -f "$config_main" ]]; then
+        status_ok "Main config" "$config_main"
+        local includes
+        includes=$(grep -nE '^[[:space:]]*Include[[:space:]]+' "$config_main" 2>/dev/null || true)
+        [[ -n "$includes" ]] && status_info "Include directives" "$includes" || status_info "Include directives" "No Include lines in main file"
+    else
+        status_fail "Main config" "$config_main not found"
+    fi
+    printf "\\n"
+    pause_menu
+}
+
+ssh_backup_configs() {
+    show_header
+    printf "${CYAN}SSH CONFIGURATION BACKUP${NC}\\n\\n"
+    local timestamp archive
+    if [[ ! -f /etc/ssh/sshd_config ]]; then
+        error "Main SSH configuration file not found; backup cancelled."
+        pause_menu
+        return
+    fi
+    if ! command -v tar >/dev/null 2>&1; then
+        error "tar is required to create a backup."
+        pause_menu
+        return
+    fi
+    install -d -m 700 "$SSH_BACKUP_DIR" || { error "Cannot create backup directory"; pause_menu; return; }
+    timestamp=$(date '+%Y%m%d-%H%M%S')
+    archive="$SSH_BACKUP_DIR/ssh-config-${timestamp}.tar.gz"
+    if tar -czf "$archive" -C / etc/ssh/sshd_config etc/ssh/sshd_config.d 2>/dev/null; then
+        chmod 600 "$archive"
+        success "SSH configuration backup created: $archive"
+        log_action "SSH config backup: $archive"
+    else
+        rm -f "$archive"
+        error "Backup failed; incomplete archive removed."
+    fi
+    pause_menu
+}
+
 ssh_configuration_menu() {
     local choice
     while true; do
@@ -288,7 +373,9 @@ ssh_configuration_menu() {
         printf "2. Show effective SSH settings\\n"
         printf "3. Inspect user authorized_keys (root included)\\n"
         printf "4. Inspect server Host Keys\\n"
-        printf "5. Configure SSH security profile (not yet available)\\n\\n"
+        printf "5. SSH configuration preflight (read-only)\\n"
+        printf "6. Create SSH configuration backup\\n"
+        printf "7. Configure SSH security profile (not yet available)\\n\\n"
         separator
         printf "0. Back\\n\\n"
         read -r -p 'Select an option: ' choice || return
@@ -297,11 +384,12 @@ ssh_configuration_menu() {
             2) ssh_show_effective_config ;;
             3) ssh_keys_audit_screen ;;
             4) ssh_hostkeys_screen ;;
-            5)
+            5) ssh_preflight_screen ;;
+            6) ssh_backup_configs ;;
+            7)
                 show_header
-                warning "Safe SSH configuration editor is under development."
-                info "No files changed. We will implement backup, preflight, sshd validation, and rollback before enabling edits."
-                log_action "SSH configuration editing requested but not yet enabled"
+                warning "SSH editing is still disabled."
+                info "Preflight and backup tools are being built before enabling config changes."
                 pause_menu
                 ;;
             0) return ;;
