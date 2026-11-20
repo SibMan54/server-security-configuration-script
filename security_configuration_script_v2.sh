@@ -410,8 +410,7 @@ ssh_hardening_profile_preview() {
     pub_value=$(awk '$1=="pubkeyauthentication"{print $2}' <<< "$effective" | tail -n1)
     tries=$(awk '$1=="maxauthtries"{print $2}' <<< "$effective" | tail -n1)
     grace=$(awk '$1=="logingracetime"{print $2}' <<< "$effective" | tail -n1)
-    printf "Current effective settings:\\n PermitRootLogin: %s\\n PasswordAuthentication: %s\\n PubkeyAuthentication: %s\\n MaxAuthTries: %s\\n LoginGraceTime: %s\\n\\n" "$root_value" "$pass_value" "$pub_value" "$tries" "$grace
-    "
+    printf "Current effective settings:\\n PermitRootLogin: %s\\n PasswordAuthentication: %s\\n PubkeyAuthentication: %s\\n MaxAuthTries: %s\\n LoginGraceTime: %s\\n\\n" "$root_value" "$pass_value" "$pub_value" "$tries" "$grace"
     printf "Choose a preview profile (nothing will be written):\\n"
     printf "1. Recommended: RootLogin no, PasswordAuthentication no, PubkeyAuthentication yes, MaxAuthTries 3, LoginGraceTime 30\\n"
     printf "2. Conservative: RootLogin prohibit-password, PasswordAuthentication yes, PubkeyAuthentication yes, MaxAuthTries 3, LoginGraceTime 30\\n"
