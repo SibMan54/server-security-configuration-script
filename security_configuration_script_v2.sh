@@ -353,7 +353,10 @@ ssh_backup_configs() {
     install -d -m 700 "$SSH_BACKUP_DIR" || { error "Cannot create backup directory"; pause_menu; return; }
     timestamp=$(date '+%Y%m%d-%H%M%S')
     archive="$SSH_BACKUP_DIR/ssh-config-${timestamp}.tar.gz"
-    if tar -czf "$archive" -C / etc/ssh/sshd_config etc/ssh/sshd_config.d 2>/dev/null; then
+    # Archive the main config and the optional drop-in directory, without SSH host keys.
+    local -a archive_paths=(sshd_config)
+    [[ -d /etc/ssh/sshd_config.d ]] && archive_paths+=(sshd_config.d)
+    if tar -czf "$archive" -C /etc/ssh "${archive_paths[@]}"; then
         chmod 600 "$archive"
         success "SSH configuration backup created: $archive"
         log_action "SSH config backup: $archive"
