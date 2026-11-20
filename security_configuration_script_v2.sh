@@ -367,6 +367,45 @@ ssh_backup_configs() {
     pause_menu
 }
 
+# SSH config editor safety helpers. Designed to accept alternate paths for isolated tests.
+ssh_config_editor_supported() {
+    local config="${1:-/etc/ssh/sshd_config}" dropin_dir="${2:-/etc/ssh/sshd_config.d}"
+    [[ -f "$config" ]] || return 1
+    # Keep initial editor conservative: only simple, global directives are accepted.
+    if grep -Eq '^[[:space:]]*(Include|Match)[[:space:]]+' "$config"; then return 1; fi
+    if [[ -d "$dropin_dir" ]] && compgen -G "$dropin_dir/*.conf" >/dev/null; then return 1; fi
+    return 0
+}
+
+# Rewrite exactly one active directive in a supplied file, or append it if absent.
+# This helper is intentionally path-parameterized so it can be unit-tested in temp dirs.
+# Callers must backup the real file and validate the resulting sshd config before reload.
+ssh_config_rewrite_directive() {
+    local config="$1" key="$2" value="$3" temp count
+    [[ -f "$config" ]] || return 1
+    [[ "$key" =~ ^[A-Za-z][A-Za-z0-9]*$ ]] || return 1
+    [[ "$value" =~ ^[A-Za-z0-9-]+$ ]] || return 1
+    count=$(grep -Eic "^[[:space:]]*${key}[[:space:]]+" "$config" || true)
+    (( count <= 1 )) || return 2
+    temp=$(mktemp "${config}.tmp.XXXXXX") || return 1
+    if ! awk -v key="$key" -v val="$value" '
+        BEGIN { done=0 }
+        /^[[:space:]]*#/ { print; next }
+        {
+            if (tolower($1) == tolower(key) && !done) { print key " " val; done=1; next }
+            print
+        }
+        END { if (!done) print key " " val }
+    ' "$config" > "$temp"; then
+        chmod --reference="$config" "$temp" 2>/dev/null || chmod 600 "$temp"
+        chown --reference="$config" "$temp" 2>/dev/null || true
+        mv -f "$temp" "$config"
+        return 0
+    fi
+    rm -f "$temp"
+    return 1
+}
+
 ssh_editor_safe_mode() {
     show_header
     printf "${CYAN}SSH EDITOR PREFLIGHT (READ-ONLY)${NC}\\n\\n"
@@ -376,10 +415,8 @@ ssh_editor_safe_mode() {
         error "Current SSH configuration is invalid; fix it before editing."
         pause_menu; return
     fi
-    if grep -Eq '^[[:space:]]*(Include|Match)[[:space:]]+' "$config"; then
-        warning "Include/Match directives detected. The editor refuses complex configs."
-    elif [[ -d /etc/ssh/sshd_config.d ]] && compgen -G '/etc/ssh/sshd_config.d/*.conf' >/dev/null; then
-        warning "SSH drop-in files detected. Editing is disabled for this configuration layout."
+    if ! ssh_config_editor_supported "$config" "/etc/ssh/sshd_config.d"; then
+        warning "Include/Match/drop-in configuration detected. Editor refuses this layout."
     elif systemctl is-active --quiet ssh.socket 2>/dev/null; then
         warning "Socket activation is active. Editor refuses to proceed."
     else
@@ -588,7 +625,10 @@ main_menu() {
     done
 }
 
-check_root
-check_os
-initialize
-main_menu
+# Source-safe guard: tests can load functions without starting the interactive program.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    check_root
+    check_os
+    initialize
+    main_menu
+fi
