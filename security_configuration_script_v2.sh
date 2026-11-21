@@ -32,15 +32,12 @@ on_error() {
     log_action "ERROR code=${code} line=${line}"
     return "$code"
 }
-trap 'on_error $LINENO' ERR
-
 on_interrupt() {
-    printf '\n'
+    printf '\\n'
     warning "Получен сигнал прерывания. Выход без дальнейших изменений."
     log_action "Interrupted by user"
     exit 130
 }
-trap on_interrupt INT TERM
 
 pause_menu() {
     printf '\n'
@@ -627,6 +624,8 @@ main_menu() {
 
 # Source-safe guard: tests can load functions without starting the interactive program.
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    trap 'on_error $LINENO' ERR
+    trap on_interrupt INT TERM
     check_root
     check_os
     initialize
