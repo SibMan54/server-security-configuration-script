@@ -51,6 +51,20 @@ if [[ "$before" == "$after" ]]; then printf 'PASS: duplicate file remains unchan
 assert_false "reject invalid directive name" ssh_config_rewrite_directive "$cfg" 'Bad Key' no
 assert_false "reject unsafe value" ssh_config_rewrite_directive "$cfg" PasswordAuthentication 'no; touch /tmp/x'
 
+# SSH directives are case-insensitive: test mixed case and duplicate rejection.
+cfg_case="$TEST_ROOT/case-mixed.conf"
+printf 'passwordauthentication yes\\n' > "$cfg_case"
+assert_true "mixed-case directive rewrite succeeds" ssh_config_rewrite_directive "$cfg_case" PasswordAuthentication no
+assert_contains "mixed-case directive replaced" "PasswordAuthentication no" "$cfg_case"
+assert_not_contains "mixed-case old value absent" "passwordauthentication yes" "$cfg_case"
+
+cfg_case_dupe="$TEST_ROOT/case-duplicate.conf"
+printf 'PasswordAuthentication yes\\npasswordauthentication no\\n' > "$cfg_case_dupe"
+before_case=$(sha256sum "$cfg_case_dupe")
+assert_false "case-insensitive duplicates rejected" ssh_config_rewrite_directive "$cfg_case_dupe" PasswordAuthentication no
+after_case=$(sha256sum "$cfg_case_dupe")
+if [[ "$before_case" == "$after_case" ]]; then printf 'PASS: mixed-case duplicate file remains unchanged\\n'; ((pass+=1)); else printf 'FAIL: mixed-case duplicate file remains unchanged\\n'; ((fail+=1)); fi
+
 cfg_mode="$TEST_ROOT/mode.conf"
 printf 'Port 22\n' > "$cfg_mode"
 chmod 640 "$cfg_mode"
