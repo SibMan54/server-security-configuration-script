@@ -397,8 +397,8 @@ ssh_config_rewrite_directive() {
         }
         END { if (!done) print key " " val }
     ' "$config" > "$temp"; then
-        chmod --reference="$config" "$temp" 2>/dev/null || chmod 600 "$temp"
         chown --reference="$config" "$temp" 2>/dev/null || true
+        chmod --reference="$config" "$temp" 2>/dev/null || chmod 600 "$temp"
         mv -f "$temp" "$config"
         return 0
     fi
