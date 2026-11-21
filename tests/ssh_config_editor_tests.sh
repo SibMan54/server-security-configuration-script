@@ -85,6 +85,14 @@ match="$TEST_ROOT/match.conf"
 printf 'Port 22\nMatch User test\n PasswordAuthentication yes\n' > "$match"
 assert_false "Match block rejected" ssh_config_editor_supported "$match" "$dropins"
 
+# Directive names are case-insensitive, so lowercase Include/Match are also refused.
+inc_lower="$TEST_ROOT/include-lowercase.conf"
+printf 'include /etc/ssh/sshd_config.d/*.conf\\n' > "$inc_lower"
+assert_false "lowercase Include rejected" ssh_config_editor_supported "$inc_lower" "$dropins"
+match_lower="$TEST_ROOT/match-lowercase.conf"
+printf 'match user test\\n passwordauthentication yes\\n' > "$match_lower"
+assert_false "lowercase Match rejected" ssh_config_editor_supported "$match_lower" "$dropins"
+
 printf 'PasswordAuthentication no\n' > "$dropins/10-hardening.conf"
 assert_false "drop-in directory rejected" ssh_config_editor_supported "$simple" "$dropins"
 assert_false "missing config rejected" ssh_config_editor_supported "$TEST_ROOT/missing.conf" "$dropins"
