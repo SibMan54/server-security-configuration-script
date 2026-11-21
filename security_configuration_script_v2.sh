@@ -369,7 +369,7 @@ ssh_config_editor_supported() {
     local config="${1:-/etc/ssh/sshd_config}" dropin_dir="${2:-/etc/ssh/sshd_config.d}"
     [[ -f "$config" ]] || return 1
     # Keep initial editor conservative: only simple, global directives are accepted.
-    if grep -Eq '^[[:space:]]*(Include|Match)[[:space:]]+' "$config"; then return 1; fi
+    if grep -Eiq '^[[:space:]]*(Include|Match)[[:space:]]+' "$config"; then return 1; fi
     if [[ -d "$dropin_dir" ]] && compgen -G "$dropin_dir/*.conf" >/dev/null; then return 1; fi
     return 0
 }
