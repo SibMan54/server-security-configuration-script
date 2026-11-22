@@ -120,5 +120,15 @@ if [[ "$before_tx" == "$after_tx" ]]; then printf 'PASS: rollback restores exact
 mode_after_tx=$(stat -c '%a' "$cfg_tx_fail")
 if [[ "$mode_after_tx" == 640 ]]; then printf 'PASS: rollback restores file mode (640)\\n'; ((pass+=1)); else printf 'FAIL: rollback restores file mode (got %s)\\n' "$mode_after_tx"; ((fail+=1)); fi
 
+
+# Symlink safety: editor must refuse to follow links to another file.
+cfg_link_target="$TEST_ROOT/link-target.conf"
+cfg_link="$TEST_ROOT/link.conf"
+printf 'PasswordAuthentication yes\\n' > "$cfg_link_target"
+ln -s "$cfg_link_target" "$cfg_link"
+assert_false "rewrite refuses symlink target" ssh_config_rewrite_directive "$cfg_link" PasswordAuthentication no
+assert_false "transaction refuses symlink target" ssh_config_editor_transaction "$cfg_link" PasswordAuthentication no validator_accept
+assert_contains "symlink target content unchanged" "PasswordAuthentication yes" "$cfg_link_target"
+
 printf '\nTest results: %d passed, %d failed\n' "$pass" "$fail"
 (( fail == 0 ))
