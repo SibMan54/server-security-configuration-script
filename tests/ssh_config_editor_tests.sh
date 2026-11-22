@@ -97,5 +97,28 @@ printf 'PasswordAuthentication no\n' > "$dropins/10-hardening.conf"
 assert_false "drop-in directory rejected" ssh_config_editor_supported "$simple" "$dropins"
 assert_false "missing config rejected" ssh_config_editor_supported "$TEST_ROOT/missing.conf" "$dropins"
 
+
+# Transaction tests: accepted edits persist; rejected edits restore original bytes and metadata.
+validator_accept() { [[ -f "$1" ]] && grep -q 'PasswordAuthentication no' "$1"; }
+validator_reject() { return 1; }
+
+cfg_tx_ok="$TEST_ROOT/transaction-success.conf"
+printf 'PasswordAuthentication yes\\nPort 22\\n' > "$cfg_tx_ok"
+chmod 640 "$cfg_tx_ok"
+assert_true "transaction accepted by validator" ssh_config_editor_transaction "$cfg_tx_ok" PasswordAuthentication no validator_accept
+assert_contains "transactional edit persisted" "PasswordAuthentication no" "$cfg_tx_ok"
+mode_tx=$(stat -c '%a' "$cfg_tx_ok")
+if [[ "$mode_tx" == 640 ]]; then printf 'PASS: transaction preserves mode (640)\\n'; ((pass+=1)); else printf 'FAIL: transaction preserves mode (got %s)\\n' "$mode_tx"; ((fail+=1)); fi
+
+cfg_tx_fail="$TEST_ROOT/transaction-rollback.conf"
+printf 'PasswordAuthentication yes\\nPort 22\\n' > "$cfg_tx_fail"
+chmod 640 "$cfg_tx_fail"
+before_tx=$(sha256sum "$cfg_tx_fail")
+assert_false "transaction rejected by validator" ssh_config_editor_transaction "$cfg_tx_fail" PasswordAuthentication no validator_reject
+after_tx=$(sha256sum "$cfg_tx_fail")
+if [[ "$before_tx" == "$after_tx" ]]; then printf 'PASS: rollback restores exact file contents\\n'; ((pass+=1)); else printf 'FAIL: rollback restores exact file contents\\n'; ((fail+=1)); fi
+mode_after_tx=$(stat -c '%a' "$cfg_tx_fail")
+if [[ "$mode_after_tx" == 640 ]]; then printf 'PASS: rollback restores file mode (640)\\n'; ((pass+=1)); else printf 'FAIL: rollback restores file mode (got %s)\\n' "$mode_after_tx"; ((fail+=1)); fi
+
 printf '\nTest results: %d passed, %d failed\n' "$pass" "$fail"
 (( fail == 0 ))
