@@ -15,7 +15,7 @@ jobs:
       - name: Bash syntax check
         run: bash -n security_configuration_script_v2.sh
       - name: SSH helper unit tests
-        run: bash tests/ssh_config_editor_tests.sh
+        run: bash -x tests/ssh_config_editor_tests.sh
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: ShellCheck
