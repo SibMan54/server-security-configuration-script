@@ -386,13 +386,13 @@ ssh_config_rewrite_directive() {
     (( count <= 1 )) || return 2
     temp=$(mktemp "${config}.tmp.XXXXXX") || return 1
     if ! awk -v key="$key" -v val="$value" '
-        BEGIN { done=0 }
+        BEGIN { found_directive=0 }
         /^[[:space:]]*#/ { print; next }
         {
-            if (tolower($1) == tolower(key) && !done) { print key " " val; done=1; next }
+            if (tolower($1) == tolower(key) && !found_directive) { print key " " val; found_directive=1; next }
             print
         }
-        END { if (!done) print key " " val }
+        END { if (!found_directive) print key " " val }
     ' "$config" > "$temp"; then
         chown --reference="$config" "$temp" 2>/dev/null || true
         chmod --reference="$config" "$temp" 2>/dev/null || chmod 600 "$temp"
