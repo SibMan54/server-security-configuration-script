@@ -403,6 +403,47 @@ ssh_config_rewrite_directive() {
     return 1
 }
 
+# Transaction wrapper for SSH directive edits. A caller-supplied validator (function or command)
+# must validate the candidate configuration. On validation failure, restore the exact prior file.
+ssh_config_editor_transaction() {
+    local config="$1" key="$2" value="$3" validator="$4"
+    local backup restore_tmp
+    [[ -f "$config" ]] || return 1
+    [[ -n "$validator" ]] || return 1
+    command -v "$validator" >/dev/null 2>&1 || declare -F "$validator" >/dev/null 2>&1 || return 1
+
+    backup=$(mktemp "${config}.backup.XXXXXX") || return 1
+    if ! cp -a -- "$config" "$backup"; then
+        rm -f -- "$backup"
+        return 1
+    fi
+
+    if ! ssh_config_rewrite_directive "$config" "$key" "$value"; then
+        rm -f -- "$backup"
+        return 1
+    fi
+
+    if "$validator" "$config"; then
+        rm -f -- "$backup"
+        return 0
+    fi
+
+    restore_tmp=$(mktemp "${config}.restore.XXXXXX") || {
+        cp -a -- "$backup" "$config"
+        rm -f -- "$backup"
+        return 1
+    }
+    if cp -a -- "$backup" "$restore_tmp" && mv -f -- "$restore_tmp" "$config"; then
+        rm -f -- "$backup"
+        return 1
+    fi
+    rm -f -- "$restore_tmp"
+    # Last-resort restoration attempt if atomic restoration failed.
+    cp -a -- "$backup" "$config" || true
+    rm -f -- "$backup"
+    return 1
+}
+
 ssh_editor_safe_mode() {
     show_header
     printf "${CYAN}SSH EDITOR PREFLIGHT (READ-ONLY)${NC}\\n\\n"
