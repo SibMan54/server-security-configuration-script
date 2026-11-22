@@ -379,7 +379,7 @@ ssh_config_editor_supported() {
 # Callers must backup the real file and validate the resulting sshd config before reload.
 ssh_config_rewrite_directive() {
     local config="$1" key="$2" value="$3" temp count
-    [[ -f "$config" ]] || return 1
+    [[ -f "$config" && ! -L "$config" ]] || return 1
     [[ "$key" =~ ^[A-Za-z][A-Za-z0-9]*$ ]] || return 1
     [[ "$value" =~ ^[A-Za-z0-9-]+$ ]] || return 1
     count=$(grep -Eic "^[[:space:]]*${key}[[:space:]]+" "$config" || true)
@@ -408,7 +408,7 @@ ssh_config_rewrite_directive() {
 ssh_config_editor_transaction() {
     local config="$1" key="$2" value="$3" validator="$4"
     local backup restore_tmp
-    [[ -f "$config" ]] || return 1
+    [[ -f "$config" && ! -L "$config" ]] || return 1
     [[ -n "$validator" ]] || return 1
     command -v "$validator" >/dev/null 2>&1 || declare -F "$validator" >/dev/null 2>&1 || return 1
 
