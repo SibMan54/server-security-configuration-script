@@ -393,13 +393,17 @@ ssh_config_rewrite_directive() {
             print
         }
         END { if (!found_directive) print key " " val }
-    ' "$config" > "$temp"; then
+    ' "$config" > "$temp" 2>"$temp.awk.err"; then
+        rm -f "$temp.awk.err"
         chown --reference="$config" "$temp" 2>/dev/null || true
         chmod --reference="$config" "$temp" 2>/dev/null || chmod 600 "$temp"
         mv -f "$temp" "$config"
         return 0
     fi
-    rm -f "$temp"
+    if [[ -s "$temp.awk.err" ]]; then
+        cat "$temp.awk.err" >&2
+    fi
+    rm -f "$temp" "$temp.awk.err"
     return 1
 }
 
