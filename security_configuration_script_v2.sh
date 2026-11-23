@@ -385,7 +385,7 @@ ssh_config_rewrite_directive() {
     count=$(grep -Eic "^[[:space:]]*${key}[[:space:]]+" "$config" || true)
     (( count <= 1 )) || return 2
     temp=$(mktemp "${config}.tmp.XXXXXX") || return 1
-    if ! awk -v key="$key" -v val="$value" '
+    if awk -v key="$key" -v val="$value" '
         BEGIN { found_directive=0 }
         /^[[:space:]]*#/ { print; next }
         {
