@@ -13,11 +13,11 @@ LOG_FILE="${LOG_DIR}/security-script.log"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; GRAY='\033[0;90m'; NC='\033[0m'
 
-info()    { printf '%b' "${BLUE}[INFO]${NC} %s\n" "$*"; }
-success() { printf '%b' "${GREEN}[OK]${NC} %s\n" "$*"; }
-warning() { printf '%b' "${YELLOW}[WARNING]${NC} %s\n" "$*"; }
-error()   { printf '%b' "${RED}[ERROR]${NC} %s\n" "$*" >&2; }
-separator(){ printf '%b' "${GRAY}%s${NC}\n" "------------------------------------------------------------"; }
+info()    { printf '%b' "${BLUE}[INFO]${NC} "; printf '%s\n' "$*"; }
+success() { printf '%b' "${GREEN}[OK]${NC} "; printf '%s\n' "$*"; }
+warning() { printf '%b' "${YELLOW}[WARNING]${NC} "; printf '%s\n' "$*"; }
+error()   { printf '%b' "${RED}[ERROR]${NC} "; printf '%s\n' "$*" >&2; }
+separator(){ printf '%b' "${GRAY}"; printf '%s\n' "------------------------------------------------------------"; printf '%b' "${NC}"; }
 
 log_action() {
     [[ -d "$LOG_DIR" ]] || return 0
@@ -83,7 +83,7 @@ show_header() {
     printf "║       SERVER SECURITY CONFIGURATION SCRIPT             ║\n"
     printf "║                    VERSION 2.0                      ║\n"
     printf '%b' "╚══════════════════════════════════════════════════════════╝${NC}\n\n"
-    printf '%b' "\033[1;37mOS:${NC} %s %s\n" "$OS_NAME" "$OS_VERSION"
+    printf '%b' "\033[1;37mOS:${NC} "; printf '%s %s\n' "$OS_NAME" "$OS_VERSION"
     printf "Version: %s\n\n" "$SCRIPT_VERSION"
     separator
 }
@@ -119,14 +119,14 @@ audit_print() {
     for row in "${AUDIT_ROWS[@]}"; do
         IFS='|' read -r level label details <<< "$row"
         case "$level" in
-            OK) printf '%b' "${GREEN}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
-            WARN) printf '%b' "${YELLOW}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
-            FAIL) printf '%b' "${RED}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
-            *) printf '%b' "${BLUE}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            OK) printf '%b' "${GREEN}"; printf '%-7s' "$level"; printf '%b' "${NC}"; printf ' %-30s %s\\n" "$label" "$details" ;;
+            WARN) printf '%b' "${YELLOW}"; printf '%-7s' "$level"; printf '%b' "${NC}"; printf ' %-30s %s\\n" "$label" "$details" ;;
+            FAIL) printf '%b' "${RED}"; printf '%-7s' "$level"; printf '%b' "${NC}"; printf ' %-30s %s\\n" "$label" "$details" ;;
+            *) printf '%b' "${BLUE}"; printf '%-7s' "$level"; printf '%b' "${NC}"; printf ' %-30s %s\\n" "$label" "$details" ;;
         esac
     done
     separator
-    printf '%b' "Summary: ${GREEN}%d OK${NC} | ${YELLOW}%d warnings${NC} | ${RED}%d errors${NC} | %d info\\n" "$AUDIT_OK" "$AUDIT_WARN" "$AUDIT_FAIL" "$AUDIT_INFO"
+    printf '%b' "Summary: ${GREEN}"; printf '%d OK' "$AUDIT_OK"; printf '%b' "${NC} | ${YELLOW}"; printf '%d warnings' "$AUDIT_WARN"; printf '%b' "${NC} | ${RED}"; printf '%d errors' "$AUDIT_FAIL"; printf '%b' "${NC} | %d info\\n" "$AUDIT_INFO"
 }
 
 service_name_ssh() {
