@@ -7,18 +7,17 @@
 set -Eeuo pipefail
 
 SCRIPT_VERSION="2.0.0-dev.1"
-SCRIPT_TITLE="Server Security Configuration Script"
 LOG_DIR="/var/log/server-security-script"
 LOG_FILE="${LOG_DIR}/security-script.log"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; GRAY='\033[0;90m'; NC='\033[0m'
 
-info()    { printf "${BLUE}[INFO]${NC} %s\n" "$*"; }
-success() { printf "${GREEN}[OK]${NC} %s\n" "$*"; }
-warning() { printf "${YELLOW}[WARNING]${NC} %s\n" "$*"; }
-error()   { printf "${RED}[ERROR]${NC} %s\n" "$*" >&2; }
-separator(){ printf "${GRAY}%s${NC}\n" "------------------------------------------------------------"; }
+info()    { printf '%b' "${BLUE}[INFO]${NC} %s\n" "$*"; }
+success() { printf '%b' "${GREEN}[OK]${NC} %s\n" "$*"; }
+warning() { printf '%b' "${YELLOW}[WARNING]${NC} %s\n" "$*"; }
+error()   { printf '%b' "${RED}[ERROR]${NC} %s\n" "$*" >&2; }
+separator(){ printf '%b' "${GRAY}%s${NC}\n" "------------------------------------------------------------"; }
 
 log_action() {
     [[ -d "$LOG_DIR" ]] || return 0
@@ -80,11 +79,11 @@ initialize() {
 
 show_header() {
     clear || true
-    printf "\n${CYAN}╔══════════════════════════════════════════════════════════╗\n"
+    printf '%b' "\n${CYAN}╔══════════════════════════════════════════════════════════╗\n"
     printf "║       SERVER SECURITY CONFIGURATION SCRIPT             ║\n"
     printf "║                    VERSION 2.0                      ║\n"
-    printf "╚══════════════════════════════════════════════════════════╝${NC}\n\n"
-    printf "\033[1;37mOS:${NC} %s %s\n" "$OS_NAME" "$OS_VERSION"
+    printf '%b' "╚══════════════════════════════════════════════════════════╝${NC}\n\n"
+    printf '%b' "\033[1;37mOS:${NC} %s %s\n" "$OS_NAME" "$OS_VERSION"
     printf "Version: %s\n\n" "$SCRIPT_VERSION"
     separator
 }
@@ -120,14 +119,14 @@ audit_print() {
     for row in "${AUDIT_ROWS[@]}"; do
         IFS='|' read -r level label details <<< "$row"
         case "$level" in
-            OK) printf "${GREEN}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
-            WARN) printf "${YELLOW}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
-            FAIL) printf "${RED}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
-            *) printf "${BLUE}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            OK) printf '%b' "${GREEN}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            WARN) printf '%b' "${YELLOW}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            FAIL) printf '%b' "${RED}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
+            *) printf '%b' "${BLUE}%-7s${NC} %-30s %s\\n" "$level" "$label" "$details" ;;
         esac
     done
     separator
-    printf "Summary: ${GREEN}%d OK${NC} | ${YELLOW}%d warnings${NC} | ${RED}%d errors${NC} | %d info\\n" "$AUDIT_OK" "$AUDIT_WARN" "$AUDIT_FAIL" "$AUDIT_INFO"
+    printf '%b' "Summary: ${GREEN}%d OK${NC} | ${YELLOW}%d warnings${NC} | ${RED}%d errors${NC} | %d info\\n" "$AUDIT_OK" "$AUDIT_WARN" "$AUDIT_FAIL" "$AUDIT_INFO"
 }
 
 service_name_ssh() {
@@ -152,9 +151,21 @@ audit_ssh() {
     root_login=$(awk '$1=="permitrootlogin" {print $2}' <<< "$sshd_output" | tail -n1)
     password_auth=$(awk '$1=="passwordauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
     pubkey_auth=$(awk '$1=="pubkeyauthentication" {print $2}' <<< "$sshd_output" | tail -n1)
-    [[ "$root_login" == no ]] && audit_add OK "Root SSH login" "Disabled" || audit_add WARN "Root SSH login" "${root_login:-unknown}"
-    [[ "$password_auth" == no ]] && audit_add OK "SSH password auth" "Disabled" || audit_add WARN "SSH password auth" "${password_auth:-unknown}"
-    [[ "$pubkey_auth" == yes ]] && audit_add OK "SSH public-key auth" "Enabled" || audit_add WARN "SSH public-key auth" "${pubkey_auth:-unknown}"
+    if [[ "$root_login" == no ]]; then
+        audit_add OK "Root SSH login" "Disabled"
+    else
+        audit_add WARN "Root SSH login" "${root_login:-unknown}"
+    fi
+    if [[ "$password_auth" == no ]]; then
+        audit_add OK "SSH password auth" "Disabled"
+    else
+        audit_add WARN "SSH password auth" "${password_auth:-unknown}"
+    fi
+    if [[ "$pubkey_auth" == yes ]]; then
+        audit_add OK "SSH public-key auth" "Enabled"
+    else
+        audit_add WARN "SSH public-key auth" "${pubkey_auth:-unknown}"
+    fi
     if command -v ss >/dev/null 2>&1; then
         listen_info=$(ss -ltnH 2>/dev/null | awk '{print $4}' | paste -sd, -)
         audit_add INFO "TCP listening endpoints" "${listen_info:-No TCP listeners detected}"
@@ -210,7 +221,7 @@ audit_ssh_keys() {
 }
 
 audit_ssh_host_keys() {
-    local hostkey keyfile pubfile fingerprint found=0
+    local keyfile pubfile fingerprint found=0
     if [[ ! -d /etc/ssh ]]; then audit_add WARN "SSH host keys" "/etc/ssh directory missing"; return; fi
     shopt -s nullglob
     for keyfile in /etc/ssh/ssh_host_*_key; do
@@ -231,12 +242,16 @@ audit_ssh_host_keys() {
         fi
     done
     shopt -u nullglob
-    ((found>0)) && audit_add OK "SSH host keys" "${found} public fingerprints readable" || audit_add WARN "SSH host keys" "No usable host key pairs found"
+    if (( found > 0 )); then
+        audit_add OK "SSH host keys" "${found} public fingerprints readable"
+    else
+        audit_add WARN "SSH host keys" "No usable host key pairs found"
+    fi
 }
 
 ssh_audit_screen() {
     show_header
-    printf "${CYAN}SSH SECURITY AUDIT (READ-ONLY)${NC}\\n\\n"
+    printf '%b' "${CYAN}SSH SECURITY AUDIT (READ-ONLY)${NC}\\n\\n"
     audit_reset
     audit_ssh
     audit_ssh_host_keys
@@ -247,7 +262,7 @@ ssh_audit_screen() {
 
 ssh_show_effective_config() {
     show_header
-    printf "${CYAN}EFFECTIVE SSH CONFIGURATION${NC}\\n\\n"
+    printf '%b' "${CYAN}EFFECTIVE SSH CONFIGURATION${NC}\\n\\n"
     if ! command -v sshd >/dev/null 2>&1; then
         warning "sshd command not found."
     elif ! sshd -T 2>/dev/null; then
@@ -264,7 +279,7 @@ ssh_show_effective_config() {
 
 ssh_keys_audit_screen() {
     show_header
-    printf "${CYAN}SSH AUTHORIZED KEYS (READ-ONLY)${NC}\\n\\n"
+    printf '%b' "${CYAN}SSH AUTHORIZED KEYS (READ-ONLY)${NC}\\n\\n"
     audit_reset
     audit_ssh_keys
     audit_print
@@ -273,7 +288,7 @@ ssh_keys_audit_screen() {
 
 ssh_hostkeys_screen() {
     show_header
-    printf "${CYAN}SSH SERVER HOST KEYS (READ-ONLY)${NC}\\n\\n"
+    printf '%b' "${CYAN}SSH SERVER HOST KEYS (READ-ONLY)${NC}\\n\\n"
     audit_reset
     audit_ssh_host_keys
     audit_print
@@ -284,8 +299,8 @@ SSH_BACKUP_DIR="/var/backups/server-security-script/ssh"
 
 ssh_preflight_screen() {
     show_header
-    printf "${CYAN}SSH CONFIGURATION PREFLIGHT (READ-ONLY) ${NC}\\n\\n"
-    local sshd_bin unit port_output socket_state ufw_state config_main
+    printf '%b' "${CYAN}SSH CONFIGURATION PREFLIGHT (READ-ONLY) ${NC}\\n\\n"
+    local sshd_bin unit port_output ufw_state config_main
     config_main="/etc/ssh/sshd_config"
     sshd_bin=$(command -v sshd || true)
     if [[ -z "$sshd_bin" ]]; then
@@ -325,7 +340,11 @@ ssh_preflight_screen() {
         status_ok "Main config" "$config_main"
         local includes
         includes=$(grep -nE '^[[:space:]]*Include[[:space:]]+' "$config_main" 2>/dev/null || true)
-        [[ -n "$includes" ]] && status_info "Include directives" "$includes" || status_info "Include directives" "No Include lines in main file"
+        if [[ -n "$includes" ]]; then
+            status_info "Include directives" "$includes"
+        else
+            status_info "Include directives" "No Include lines in main file"
+        fi
     else
         status_fail "Main config" "$config_main not found"
     fi
@@ -335,7 +354,7 @@ ssh_preflight_screen() {
 
 ssh_backup_configs() {
     show_header
-    printf "${CYAN}SSH CONFIGURATION BACKUP${NC}\\n\\n"
+    printf '%b' "${CYAN}SSH CONFIGURATION BACKUP${NC}\\n\\n"
     local timestamp archive
     if [[ ! -f /etc/ssh/sshd_config ]]; then
         error "Main SSH configuration file not found; backup cancelled."
@@ -450,7 +469,7 @@ ssh_config_editor_transaction() {
 
 ssh_editor_safe_mode() {
     show_header
-    printf "${CYAN}SSH EDITOR PREFLIGHT (READ-ONLY)${NC}\\n\\n"
+    printf '%b' "${CYAN}SSH EDITOR PREFLIGHT (READ-ONLY)${NC}\\n\\n"
     local config="/etc/ssh/sshd_config"
     if [[ ! -f "$config" ]]; then error "Missing $config"; pause_menu; return; fi
     if ! sshd -t 2>/dev/null; then
@@ -470,7 +489,7 @@ ssh_editor_safe_mode() {
 
 ssh_hardening_profile_preview() {
     show_header
-    printf "${CYAN}SSH HARDENING PROFILE — PREVIEW ONLY${NC}\\n\\n"
+    printf '%b' "${CYAN}SSH HARDENING PROFILE — PREVIEW ONLY${NC}\\n\\n"
     local config="/etc/ssh/sshd_config" effective root_value pass_value pub_value tries grace choice
     if [[ ! -f "$config" ]] || ! command -v sshd >/dev/null 2>&1; then
         error "sshd_config or sshd is missing."
@@ -512,7 +531,7 @@ ssh_configuration_menu() {
     local choice
     while true; do
         show_header
-        printf "${CYAN}SSH MANAGEMENT${NC}\n\n"
+        printf '%b' "${CYAN}SSH MANAGEMENT${NC}\n\n"
         printf "1. Full SSH security audit (read-only)\n"
         printf "2. Show effective SSH settings\n"
         printf "3. Inspect user authorized_keys (root included)\n"
@@ -558,7 +577,11 @@ audit_fail2ban() {
     local jails
     if jails=$(fail2ban-client status 2>/dev/null); then
         jails=$(sed -n 's/.*Jail list:[[:space:]]*//p' <<< "$jails" | tr -d ' ')
-        [[ -n "$jails" ]] && audit_add OK "Fail2Ban jails" "$jails" || audit_add WARN "Fail2Ban jails" "No jails listed"
+        if [[ -n "$jails" ]]; then
+            audit_add OK "Fail2Ban jails" "$jails"
+        else
+            audit_add WARN "Fail2Ban jails" "No jails listed"
+        fi
     else
         audit_add WARN "Fail2Ban status" "Could not read jail status"
     fi
@@ -601,7 +624,7 @@ audit_sysctl() {
 
 audit_basic() {
     show_header
-    printf "${CYAN}READ-ONLY SYSTEM AUDIT${NC}\\n\\n"
+    printf '%b' "${CYAN}READ-ONLY SYSTEM AUDIT${NC}\\n\\n"
     audit_reset
     audit_add INFO "OS" "${OS_NAME} ${OS_VERSION} (${OS_ID})"
     audit_ssh
@@ -630,7 +653,7 @@ main_menu() {
     local choice
     while true; do
         show_header
-        printf "\033[1;37mSERVER CONFIGURATION${NC}\n\n"
+        printf '%b' "\033[1;37mSERVER CONFIGURATION${NC}\n\n"
         printf " 1. System updates\n"
         printf " 2. SSH configuration\n"
         printf " 3. UFW Firewall\n"
